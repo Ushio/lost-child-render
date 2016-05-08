@@ -5,6 +5,7 @@
 #include <inttypes.h>
 
 #include <glm/glm.hpp>
+
 #include "render_type.hpp"
 
 namespace lc {
@@ -62,22 +63,24 @@ namespace lc {
 		double pdf = 0.0;
 	};
 
-	template <class E> 
+	template <class E>
 	Sample<Vec3> generate_cosine_weight_hemisphere(RandomEngine<E> &engine) {
 		double eps_1 = generate_continuous(engine);
 		double eps_2 = generate_continuous(engine);
 
 		double theta = glm::acos(glm::sqrt(1.0 - eps_1));
-		double phi = 2.0 * glm::pi<double>() * eps_2;
-		double cos_theta = cos(theta);
+		double phi = glm::two_pi<double>() * eps_2;
+		double cos_theta = glm::cos(theta);
 
 		double z = sin(theta) * cos(phi);
 		double x = sin(theta) * sin(phi);
 		double y = cos_theta;
 
+		static const double reciprocal_pi = 1.0 / glm::pi<double>();
+
 		Sample<Vec3> sample;
 		sample.value = Vec3(x, y, z);
-		sample.pdf = cos_theta / glm::pi<double>();
+		sample.pdf = cos_theta * reciprocal_pi;
 		return sample;
 	}
 }
