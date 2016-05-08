@@ -54,7 +54,7 @@ void CosineScatterApp::draw()
 	}
 
 
-	lc::Xor128 e;
+	lc::MersenneTwister e;
 
 	gl::VertBatch vb(GL_POINTS);
 

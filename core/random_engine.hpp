@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <algorithm>
+#include <random>
 #include <inttypes.h>
 
 #include <glm/glm.hpp>
@@ -46,6 +47,18 @@ namespace lc {
 		uint32_t operator()() {
 			_y = _y ^ (_y << 13); _y = _y ^ (_y >> 17);
 			return _y = _y ^ (_y << 5);
+		}
+	};
+	struct MersenneTwister : public RandomEngine<MersenneTwister> {
+		MersenneTwister() {
+
+		}
+		MersenneTwister(uint32_t seed):_engine(seed){
+		}
+
+		std::mt19937 _engine;
+		uint32_t operator()() {
+			return _engine();
 		}
 	};
 
