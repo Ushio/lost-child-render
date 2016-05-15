@@ -160,9 +160,10 @@ namespace lc {
 						}
 					}
 
+					// 分割した場合のコスト期待値
 					double cost = 2.0 * kCOST_INTERSECT_AABB
 						+ (surface_area(aabb_L) / area) * indices_L.size() * kCOST_INTERSECT_TRIANGLE +
-						+(surface_area(aabb_R) / area) * indices_R.size() * kCOST_INTERSECT_TRIANGLE;
+						+ (surface_area(aabb_R) / area) * indices_R.size() * kCOST_INTERSECT_TRIANGLE;
 
 					if (cost < min_cost) {
 						_nodes[child_L_index].aabb = aabb_L;
