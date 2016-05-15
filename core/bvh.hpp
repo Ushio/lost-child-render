@@ -7,6 +7,17 @@
 #include <boost/optional.hpp>
 
 namespace lc {
+	inline double surface_area(const AABB &aabb) {
+		Vec3 size = aabb.max_position - aabb.min_position;
+		return (size.x * size.z + size.x * size.y + size.z * size.y) * 2.0;
+	}
+	inline AABB expand(AABB aabb, const Triangle &triangle) {
+		for (int j = 0; j < 3; ++j) {
+			aabb = expand(aabb, triangle.v[j]);
+		}
+		return aabb;
+	}
+
 	struct BVH {
 		struct Node {
 			// 空間
@@ -52,10 +63,7 @@ namespace lc {
 			_nodes[0].indices.resize(_triangles.size());
 			for (int i = 0; i < _triangles.size(); ++i) {
 				_nodes[0].indices[i] = i;
-
-				for (int j = 0; j < 3; ++j) {
-					_nodes[0].aabb = expand(_nodes[0].aabb, _triangles[i].v[j]);
-				}
+				_nodes[0].aabb = expand(_nodes[0].aabb, _triangles[i]);
 			}
 
 			this->build_recursive(0, 1);
