@@ -113,15 +113,6 @@ namespace lc {
 			bool is_separate = false;
 			
 			for (int dimension = 0; dimension < 3; ++dimension) {
-				// クリア
-				indices_L.clear();
-				indices_R.clear();
-				indices_L.reserve(indices.size() / 2);
-				indices_R.reserve(indices.size() / 2);
-
-				aabb_L = AABB();
-				aabb_R = AABB();
-
 				for (int i = 0; i < indices.size(); ++i) {
 					int index = indices[i];
 					const Triangle &triangle = _triangles[index];
@@ -133,38 +124,65 @@ namespace lc {
 				// 中央値を求める
 				std::size_t median_index = compornents.size() >> 1;
 				std::nth_element(compornents.begin(), compornents.begin() + median_index, compornents.end());
-				double border = compornents[median_index];
+				double median = compornents[median_index];
 
-				// ボーダーに基づいて振り分ける
-				for (int i = 0; i < indices.size(); ++i) {
-					int index = indices[i];
-					const Triangle &triangle = _triangles[index];
+				// 最大最小
+				std::vector<double>::iterator min_edge;
+				std::vector<double>::iterator max_edge;
+				std::tie(min_edge, max_edge) = std::minmax_element(compornents.begin(), compornents.end());
 
-					double value0 = _triangles[index].v[0][dimension];
-					double value1 = _triangles[index].v[1][dimension];
-					double value2 = _triangles[index].v[2][dimension];
-					if (value0 <= border || value1 <= border || value2 <= border) {
-						indices_L.push_back(index);
-						aabb_L = expand(aabb_L, triangle);
-					}
-					if (border < value0 || border < value1 || border < value2) {
-						indices_R.push_back(index);
-						aabb_R = expand(aabb_R, triangle);
-					}
+				// 中央値に加え、少し探索してみる
+				constexpr int N_SEPARATION = 16;
+				std::array<double, N_SEPARATION> borders;
+				double step = (*max_edge - *min_edge) / N_SEPARATION;
+				for (int i = 0; i < N_SEPARATION - 1; ++i) {
+					borders[i] = *min_edge + (i + 1) * step;
 				}
+				borders[N_SEPARATION - 1] = median;
 
-				double cost = 2.0 * kCOST_INTERSECT_AABB
-					+ (surface_area(aabb_L) / area) * indices_L.size() * kCOST_INTERSECT_TRIANGLE +
-					+ (surface_area(aabb_R) / area) * indices_R.size() * kCOST_INTERSECT_TRIANGLE;
+				for (int i = 0; i < borders.size(); ++i) {
+					double border = borders[i];
 
-				if (cost < min_cost) {
-					_nodes[child_L_index].aabb = aabb_L;
-					_nodes[child_R_index].aabb = aabb_R;
-					std::swap(_nodes[child_L_index].indices, indices_L);
-					std::swap(_nodes[child_R_index].indices, indices_R);
-					min_cost = cost;
+					// クリア
+					indices_L.clear();
+					indices_R.clear();
+					indices_L.reserve(indices.size() / 2);
+					indices_R.reserve(indices.size() / 2);
 
-					is_separate = true;
+					aabb_L = AABB();
+					aabb_R = AABB();
+
+					// ボーダーに基づいて振り分ける
+					for (int i = 0; i < indices.size(); ++i) {
+						int index = indices[i];
+						const Triangle &triangle = _triangles[index];
+
+						double value0 = _triangles[index].v[0][dimension];
+						double value1 = _triangles[index].v[1][dimension];
+						double value2 = _triangles[index].v[2][dimension];
+						if (value0 <= border || value1 <= border || value2 <= border) {
+							indices_L.push_back(index);
+							aabb_L = expand(aabb_L, triangle);
+						}
+						if (border < value0 || border < value1 || border < value2) {
+							indices_R.push_back(index);
+							aabb_R = expand(aabb_R, triangle);
+						}
+					}
+
+					double cost = 2.0 * kCOST_INTERSECT_AABB
+						+ (surface_area(aabb_L) / area) * indices_L.size() * kCOST_INTERSECT_TRIANGLE +
+						+(surface_area(aabb_R) / area) * indices_R.size() * kCOST_INTERSECT_TRIANGLE;
+
+					if (cost < min_cost) {
+						_nodes[child_L_index].aabb = aabb_L;
+						_nodes[child_R_index].aabb = aabb_R;
+						std::swap(_nodes[child_L_index].indices, indices_L);
+						std::swap(_nodes[child_R_index].indices, indices_R);
+						min_cost = cost;
+
+						is_separate = true;
+					}
 				}
 			}
 

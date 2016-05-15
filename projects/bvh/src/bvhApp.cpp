@@ -48,6 +48,7 @@ void bvhApp::setup()
 	_plane = gl::Batch::create(geom::WirePlane().size(vec2(10.0f)).subdivisions(ivec2(10)), colorShader);
 
 	cinder::ObjLoader loader(loadAsset("bunny.obj"));
+	//cinder::ObjLoader loader(loadAsset("lucy.obj"));
 	_mesh = cinder::TriMesh::create(loader);
 	_bvh.set_triangle(lc::to_triangles(_mesh));
 	_bvh.build();
@@ -75,7 +76,7 @@ void bvhApp::draw()
 		gl::ScopedColor color(Color::gray(0.2f));
 		_plane->draw();
 	}
-	gl::drawCoordinateFrame();
+	// gl::drawCoordinateFrame();
 
 	{
 		gl::ScopedPolygonMode wire(GL_LINE);
@@ -84,55 +85,6 @@ void bvhApp::draw()
 
 
 	lc::Xor e;
-
-	//struct ColorTriangle {
-	//	lc::Triangle triangle;
-	//	lc::Vec3 color;
-	//};
-	//std::vector<ColorTriangle> triangles;
-
-	//ColorTriangle tri;
-	//tri.triangle = lc::Triangle(
-	//	lc::Vec3(-1.0, -1.0, 0.0),
-	//	lc::Vec3(1.0, -1.0, 0.0),
-	//	lc::Vec3(0.0, 1.5, 0.0)
-	//);
-	//tri.color = lc::Vec3(1.0, 1.0, 0.0);
-	//triangles.emplace_back(tri);
-
-	//double tri_range = 1.0;
-	//double tri_size = 0.8;
-	//for (int i = 0; i < 5; ++i) {
-	//	ColorTriangle tri;
-	//	lc::Vec3 center(lc::generate_continuous(e, -tri_range, tri_range), lc::generate_continuous(e, -tri_range, tri_range), lc::generate_continuous(e, -tri_range, tri_range));
-	//	tri.triangle = lc::Triangle(
-	//		center + lc::Vec3(lc::generate_continuous(e, -tri_size, tri_size), lc::generate_continuous(e, -tri_size, tri_size), lc::generate_continuous(e, -tri_size, tri_size)),
-	//		center + lc::Vec3(lc::generate_continuous(e, -tri_size, tri_size), lc::generate_continuous(e, -tri_size, tri_size), lc::generate_continuous(e, -tri_size, tri_size)),
-	//		center + lc::Vec3(lc::generate_continuous(e, -tri_size, tri_size), lc::generate_continuous(e, -tri_size, tri_size), lc::generate_continuous(e, -tri_size, tri_size))
-	//	);
-	//	tri.color = glm::rgbColor(lc::Vec3(lc::generate_continuous(e) * 360.0, 1.0, 1.0));
-	//	triangles.emplace_back(tri);
-	//}
-
-	//gl::VertBatch tri_vb(GL_LINES);
-
-	//for (int i = 0; i < triangles.size(); ++i) {
-	//	auto triangle = triangles[i];
-	//	tri_vb.color(triangle.color.r, triangle.color.g, triangle.color.b);
-
-	//	// 三角形
-	//	for (int j = 0; j < 3; ++j) {
-	//		tri_vb.vertex(triangle.triangle.v[j]);
-	//		tri_vb.vertex(triangle.triangle.v[(j + 1) % 3]);
-	//	}
-
-	//	// 法線
-	//	lc::Vec3 c = boost::accumulate(triangle.triangle.v, lc::Vec3()) / triangle.triangle.v.size();
-	//	lc::Vec3 n = lc::triangle_normal(triangle.triangle, false);
-	//	gl::ScopedColor n_color(triangle.color.r, triangle.color.g, triangle.color.b);
-	//	gl::drawVector(c, c + n * 0.4, 0.1f, 0.02f);
-	//}
-	//tri_vb.draw();
 
 	for (int i = 0; i < 50; ++i) {
 		lc::Vec3 o = lc::generate_on_sphere(e) * glm::mix(1.5, 4.0, lc::generate_continuous(e));
