@@ -138,35 +138,22 @@ void bvhApp::draw()
 		lc::Vec3 o = lc::generate_on_sphere(e) * glm::mix(1.5, 4.0, lc::generate_continuous(e));
 		lc::Ray ray(o, glm::normalize(lc::generate_on_sphere(e) * 0.5 - o));
 
-		//int intersection_index;
-		//boost::optional<lc::TriangleIntersection> intersection;
-		//for (int j = 0; j < triangles.size(); ++j) {
-		//	if (auto new_intersection = lc::intersect(ray, triangles[j].triangle)) {
-		//		double tmin = intersection ? intersection->tmin : std::numeric_limits<double>::max();
-		//		if (new_intersection->tmin <= tmin) {
-		//			intersection = new_intersection;
-		//			intersection_index = j;
-		//		}
-		//	}
-		//}
+		if (auto intersection = _bvh.intersect(ray)) {
+			auto p = intersection->intersect_position(ray);
+			auto n = intersection->intersect_normal(_bvh._triangles[intersection->triangle_index]);
+			auto r = glm::reflect(ray.d, n);
 
-		//if (intersection) {
-		//	auto tri_color = triangles[intersection_index].color;
-		//	auto p = intersection->intersect_position(ray);
-		//	auto n = intersection->intersect_normal(triangles[intersection_index].triangle);
-		//	auto r = glm::reflect(ray.d, n);
-
-		//	gl::ScopedColor c(tri_color.r, tri_color.g, tri_color.b);
-		//	gl::drawCube((vec3)ray.o, vec3(0.05f));
-		//	gl::drawLine(o, p);
-		//	gl::drawSphere(p, 0.01f);
-		//	gl::drawLine(p, p + r * 0.1);
-		//}
-		//else {
-		//	gl::ScopedColor c(0.5f, 0.5f, 0.5f);
-		//	gl::drawCube((vec3)ray.o, vec3(0.05f));
-		//	gl::drawLine(ray.o, ray.o + ray.d * 5.0);
-		//}
+			gl::ScopedColor c(1.0, 0.5, 0.0);
+			gl::drawCube((vec3)ray.o, vec3(0.05f));
+			gl::drawLine(o, p);
+			gl::drawSphere(p, 0.01f);
+			gl::drawLine(p, p + r * 0.1);
+		}
+		else {
+			gl::ScopedColor c(0.5f, 0.5f, 0.5f);
+			gl::drawCube((vec3)ray.o, vec3(0.05f));
+			gl::drawLine(ray.o, ray.o + ray.d * 5.0);
+		}
 	}
 
 	if (_show_all) {
@@ -190,7 +177,9 @@ void bvhApp::draw()
 		gl::VertBatch vb(GL_LINES);
 		for (int i = 0; i < node_count; ++i) {
 			const lc::BVH::Node &node = _bvh._nodes[node_begin + i];
-			lc::draw_wire_aabb(node.aabb, vb);
+			if (lc::empty(node.aabb) == false) {
+				lc::draw_wire_aabb(node.aabb, vb);
+			}
 		}
 		vb.draw();
 	}

@@ -7,6 +7,9 @@
 #include <boost/optional.hpp>
 
 namespace lc {
+	static const double kCOST_INTERSECT_AABB = 1.0;
+	static const double kCOST_INTERSECT_TRIANGLE = 1.5;
+
 	inline double surface_area(const AABB &aabb) {
 		Vec3 size = aabb.max_position - aabb.min_position;
 		return (size.x * size.z + size.x * size.y + size.z * size.y) * 2.0;
@@ -43,9 +46,9 @@ namespace lc {
 		inline int parent(int index) const {
 			return index >> 1;
 		}
-		int depth_to_dimension(int depth) const {
-			return depth % 3;
-		}
+		//int depth_to_dimension(int depth) const {
+		//	return depth % 3;
+		//}
 
 		void build() {
 			if (_triangles.empty()) {
@@ -70,7 +73,7 @@ namespace lc {
 		}
 
 		void build_recursive(int depth, int parent) {
-			int dimension = this->depth_to_dimension(depth);
+			// int dimension = this->depth_to_dimension(depth);
 			int node_index = parent - 1;
 
 			// 最大深度に達したら、終わりにする
@@ -81,56 +84,137 @@ namespace lc {
 				// done
 				return;
 			}
-
-			auto aabb = _nodes[node_index].aabb;
+			
 			std::vector<int> &indices = _nodes[node_index].indices;
-
-			// 適当だが部屋の中身が3個より少なくなったら、終わりにする
+			// 数が少なくなったら、終わりにする
 			if (indices.size() < 3) {
 				// done
 				return;
 			}
 
-			// 分配する
-			// まあ、もっと高度なアルゴリズムはあるが、まずはもっとも単純に
-			double border = 0.0f;
-			for (int index : indices) {
-				for (int i = 0; i < 3; ++i) {
-					border += _triangles[index].v[i][dimension];
-				}
-			}
-			border /= (indices.size() * 3);
+			auto aabb = _nodes[node_index].aabb;
+			auto area = surface_area(aabb);
 
 			int child_L = left_child(parent);
 			int child_R = right_child(parent);
 			int child_L_index = child_L - 1;
 			int child_R_index = child_R - 1;
 
-			_nodes[child_L_index].indices.reserve(indices.size() / 2);
-			_nodes[child_R_index].indices.reserve(indices.size() / 2);
+			std::vector<double> compornents(indices.size() * 3);
 
-			for (int i = 0; i < indices.size(); ++i) {
-				int index = indices[i];
-				const Triangle &triangle = _triangles[index];
+			std::vector<int> indices_L;
+			std::vector<int> indices_R;
+			AABB aabb_L;
+			AABB aabb_R;
 
-				double value0 = _triangles[index].v[0][dimension];
-				double value1 = _triangles[index].v[1][dimension];
-				double value2 = _triangles[index].v[2][dimension];
-				if (value0 <= border || value1 <= border || value2 <= border) {
-					_nodes[child_L_index].indices.push_back(index);
+			// 分割しなかった場合のコストが最小コストである
+			double min_cost = indices.size() * kCOST_INTERSECT_TRIANGLE;
 
+			bool is_separate = false;
+			
+			for (int dimension = 0; dimension < 3; ++dimension) {
+				// クリア
+				indices_L.clear();
+				indices_R.clear();
+				indices_L.reserve(indices.size() / 2);
+				indices_R.reserve(indices.size() / 2);
+
+				aabb_L = AABB();
+				aabb_R = AABB();
+
+				for (int i = 0; i < indices.size(); ++i) {
+					int index = indices[i];
+					const Triangle &triangle = _triangles[index];
 					for (int j = 0; j < 3; ++j) {
-						_nodes[child_L_index].aabb = expand(_nodes[child_L_index].aabb, triangle.v[j]);
+						compornents[i * 3 + j] = triangle.v[j][dimension];
 					}
 				}
-				if (border <= value0 || border <= value1 || border <= value2) {
-					_nodes[child_R_index].indices.push_back(index);
 
-					for (int j = 0; j < 3; ++j) {
-						_nodes[child_R_index].aabb = expand(_nodes[child_R_index].aabb, triangle.v[j]);
+				// 中央値を求める
+				std::size_t median_index = compornents.size() >> 1;
+				std::nth_element(compornents.begin(), compornents.begin() + median_index, compornents.end());
+				double border = compornents[median_index];
+
+				// ボーダーに基づいて振り分ける
+				for (int i = 0; i < indices.size(); ++i) {
+					int index = indices[i];
+					const Triangle &triangle = _triangles[index];
+
+					double value0 = _triangles[index].v[0][dimension];
+					double value1 = _triangles[index].v[1][dimension];
+					double value2 = _triangles[index].v[2][dimension];
+					if (value0 <= border || value1 <= border || value2 <= border) {
+						indices_L.push_back(index);
+						aabb_L = expand(aabb_L, triangle);
 					}
+					if (border < value0 || border < value1 || border < value2) {
+						indices_R.push_back(index);
+						aabb_R = expand(aabb_R, triangle);
+					}
+				}
+
+				double cost = 2.0 * kCOST_INTERSECT_AABB
+					+ (surface_area(aabb_L) / area) * indices_L.size() * kCOST_INTERSECT_TRIANGLE +
+					+ (surface_area(aabb_R) / area) * indices_R.size() * kCOST_INTERSECT_TRIANGLE;
+
+				if (cost < min_cost) {
+					_nodes[child_L_index].aabb = aabb_L;
+					_nodes[child_R_index].aabb = aabb_R;
+					std::swap(_nodes[child_L_index].indices, indices_L);
+					std::swap(_nodes[child_R_index].indices, indices_R);
+					min_cost = cost;
+
+					is_separate = true;
 				}
 			}
+
+			// 分割は必要ない
+			if (is_separate == false) {
+				return;
+			}
+
+			//// 適当だが部屋の中身が3個より少なくなったら、終わりにする
+			//if (indices.size() < 3) {
+			//	// done
+			//	return;
+			//}
+
+			//// 分配する
+			//// まあ、もっと高度なアルゴリズムはあるが、まずはもっとも単純に
+			//double border = 0.0f;
+			//for (int index : indices) {
+			//	for (int i = 0; i < 3; ++i) {
+			//		border += _triangles[index].v[i][dimension];
+			//	}
+			//}
+			//border /= (indices.size() * 3);
+
+
+			//_nodes[child_L_index].indices.reserve(indices.size() / 2);
+			//_nodes[child_R_index].indices.reserve(indices.size() / 2);
+
+			//for (int i = 0; i < indices.size(); ++i) {
+			//	int index = indices[i];
+			//	const Triangle &triangle = _triangles[index];
+
+			//	double value0 = _triangles[index].v[0][dimension];
+			//	double value1 = _triangles[index].v[1][dimension];
+			//	double value2 = _triangles[index].v[2][dimension];
+			//	if (value0 <= border || value1 <= border || value2 <= border) {
+			//		_nodes[child_L_index].indices.push_back(index);
+
+			//		for (int j = 0; j < 3; ++j) {
+			//			_nodes[child_L_index].aabb = expand(_nodes[child_L_index].aabb, triangle.v[j]);
+			//		}
+			//	}
+			//	if (border <= value0 || border <= value1 || border <= value2) {
+			//		_nodes[child_R_index].indices.push_back(index);
+
+			//		for (int j = 0; j < 3; ++j) {
+			//			_nodes[child_R_index].aabb = expand(_nodes[child_R_index].aabb, triangle.v[j]);
+			//		}
+			//	}
+			//}
 
 			// 分配が完了したら自身の分を破棄する
 			std::swap(_nodes[node_index].indices, std::vector<int>());
@@ -157,7 +241,7 @@ namespace lc {
 
 			int node_index = parent - 1;
 			auto intersection = lc::intersect(ray, _nodes[node_index].aabb);
-			if (intersection) {
+			if (!intersection) {
 				return boost::none;
 			}
 
