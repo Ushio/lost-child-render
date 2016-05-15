@@ -121,27 +121,17 @@ namespace lc {
 					}
 				}
 
-				// 中央値を求める
-				std::size_t median_index = compornents.size() >> 1;
-				std::nth_element(compornents.begin(), compornents.begin() + median_index, compornents.end());
-				double median = compornents[median_index];
-
 				// 最大最小
 				std::vector<double>::iterator min_edge;
 				std::vector<double>::iterator max_edge;
 				std::tie(min_edge, max_edge) = std::minmax_element(compornents.begin(), compornents.end());
 
-				// 中央値に加え、少し探索してみる
-				constexpr int N_SEPARATION = 16;
-				std::array<double, N_SEPARATION> borders;
-				double step = (*max_edge - *min_edge) / N_SEPARATION;
-				for (int i = 0; i < N_SEPARATION - 1; ++i) {
-					borders[i] = *min_edge + (i + 1) * step;
-				}
-				borders[N_SEPARATION - 1] = median;
+				// 根拠のある数字ではないが、あまり計算が爆発しない程度
+				int separation = std::max((int)indices.size() >> 5, 2);
+				double step = (*max_edge - *min_edge) / separation;
 
-				for (int i = 0; i < borders.size(); ++i) {
-					double border = borders[i];
+				for (int i = 0; i < separation - 1; ++i) {
+					double border = *min_edge + (i + 1) * step;
 
 					// クリア
 					indices_L.clear();
