@@ -64,14 +64,15 @@ void trace_refract(const lc::Ray &ray, const lc::Sphere &sphere, double sphere_i
 	gl::ScopedColor c(vec4(color, 1.0f));
 
 	if (auto intersection = lc::intersect(ray, sphere)) {
-		lc::Intersection i = *intersection;
-		gl::drawLine(ray.o, intersection->p);
+		lc::Vec3 p = intersection->intersect_position(ray);
+		lc::Vec3 N = intersection->intersect_normal(sphere.center, p);
+		gl::drawLine(ray.o, p);
 
 		double air_ior = 1.0;
 		double eta = intersection->isback ? sphere_ior / air_ior : air_ior / sphere_ior;
 
-		auto refract_dir = lc::refraction(ray.d, intersection->n, eta);
-		trace_refract(lc::Ray(intersection->p + refract_dir * 0.001, refract_dir), sphere, sphere_ior, depth + 1);
+		auto refract_dir = lc::refraction(ray.d, N, eta);
+		trace_refract(lc::Ray(p + refract_dir * 0.001, refract_dir), sphere, sphere_ior, depth + 1);
 	}
 	else {
 		gl::drawLine(ray.o, ray.o + ray.d * 100.0);
@@ -86,6 +87,8 @@ void SphereCollisionApp::draw()
 	gl::ScopedMatrices push;
 	gl::setMatrices(_camera);
 
+	gl::ScopedDepth depth(true);
+
 	{
 		gl::ScopedColor color(Color::gray(0.2f));
 		_plane->draw();
@@ -98,6 +101,7 @@ void SphereCollisionApp::draw()
 		gl::drawSphere(sphere.center, sphere.radius, 15);
 	}
 
+	gl::drawCoordinateFrame(0.5f);
 	
 	lc::Xor engine;
 	for (int i = 0; i < 100; ++i) {

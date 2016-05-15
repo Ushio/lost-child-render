@@ -10,7 +10,13 @@ namespace lc {
 		Vec3 center;
 	};
 
-	inline boost::optional<Intersection> intersect(const Ray &ray, const Sphere &s) {
+	struct SphereIntersection : public Intersection {
+		Vec3 intersect_normal(const Vec3& sphere_center, const Vec3 &intersect_position) const {
+			return isback ? glm::normalize(sphere_center - intersect_position) : glm::normalize(intersect_position - sphere_center);
+		}
+		bool isback = false;
+	};
+	inline boost::optional<SphereIntersection> intersect(const Ray &ray, const Sphere &s) {
 		Vec3 m = ray.o - s.center;
 		double b = dot(m, ray.d);
 		double radius_squared = s.radius * s.radius;
@@ -26,19 +32,15 @@ namespace lc {
 		double sqrt_discr = sqrt(discr);
 		double tmin_near = -b - sqrt_discr;
 		if (0.0 < tmin_near) {
-			Intersection intersection;
+			SphereIntersection intersection;
 			intersection.tmin = tmin_near;
-			intersection.p = ray.o + ray.d * intersection.tmin;
-			intersection.n = normalize(intersection.p - s.center);
 			intersection.isback = false;
 			return intersection;
 		}
 		double tmin_far = -b + sqrt_discr;
 		if (0.0 < tmin_far) {
-			Intersection intersection;
+			SphereIntersection intersection;
 			intersection.tmin = tmin_far;
-			intersection.p = ray.o + ray.d * intersection.tmin;
-			intersection.n = normalize(s.center - intersection.p);
 			intersection.isback = true;
 			return intersection;
 		}

@@ -69,6 +69,10 @@ namespace lc {
 		constexpr double c = 1.0 / static_cast<double>(0xffffffffLL + 1);
 		return static_cast<double>(uniform) * c;
 	}
+	template <class E>
+	double generate_continuous(RandomEngine<E> &engine, double a, double b) {
+		return glm::mix(a, b, generate_continuous(engine));
+	}
 
 	template <class T>
 	struct Sample {
@@ -76,6 +80,16 @@ namespace lc {
 		double pdf = 0.0;
 	};
 
+	template <class E>
+	Vec3 generate_on_sphere(RandomEngine<E> &engine) {
+		float z = generate_continuous(engine) * 2.0 - 1.0;
+		float phi = generate_continuous(engine) * glm::two_pi<double>();
+		float v = glm::sqrt(1.0 - z * z);
+		return Vec3(
+			v * glm::cos(phi),
+			v * glm::sin(phi),
+			z);
+	}
 	template <class E>
 	Sample<Vec3> generate_cosine_weight_hemisphere(RandomEngine<E> &engine) {
 		double eps_1 = generate_continuous(engine);
@@ -89,11 +103,11 @@ namespace lc {
 		double x = sin(theta) * sin(phi);
 		double y = cos_theta;
 
-		static const double reciprocal_pi = 1.0 / glm::pi<double>();
+		static const double one_divice_by_pi = 1.0 / glm::pi<double>();
 
 		Sample<Vec3> sample;
 		sample.value = Vec3(x, y, z);
-		sample.pdf = cos_theta * reciprocal_pi;
+		sample.pdf = cos_theta * one_divice_by_pi;
 		return sample;
 	}
 }

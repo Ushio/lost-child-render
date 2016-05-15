@@ -58,7 +58,7 @@ void CosineScatterApp::draw()
 
 	gl::VertBatch vb(GL_POINTS);
 
-	int N = 10000;
+	int N = 20000;
 
 	double sum = 0.0;
 	for (int i = 0; i < N; ++i) {
@@ -69,7 +69,7 @@ void CosineScatterApp::draw()
 		// 表面積（厚さ1の体積）
 		sum += 1.0 / s.pdf;
 	}
-	if (getElapsedFrames() % 60 == 0) {
+	if (getElapsedFrames() % 60 == 1) {
 		double integral = sum / N;
 		console() << boost::format("integral = %d") % integral << std::endl;
 	}

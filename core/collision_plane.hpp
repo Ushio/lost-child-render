@@ -27,7 +27,12 @@ namespace lc {
 		return plane;
 	}
 
-	inline boost::optional<Intersection> intersect(const Ray &ray, const Plane &p) {
+	struct PlaneIntersection : public Intersection {
+		Vec3 intersect_normal;
+		bool isback = false;
+	};
+
+	inline boost::optional<PlaneIntersection> intersect(const Ray &ray, const Plane &p) {
 		double DoN = glm::dot(ray.d, p.n);
 		if (glm::abs(DoN) <= glm::epsilon<double>()) {
 			return boost::none;
@@ -36,11 +41,10 @@ namespace lc {
 		if (tmin <= 0.0) {
 			return boost::none;
 		}
-		Intersection intersection;
+		PlaneIntersection intersection;
 		intersection.tmin = tmin;
 		intersection.isback = 0.0 < DoN;
-		intersection.n = intersection.isback ? -p.n : p.n;
-		intersection.p = ray.o + ray.d * tmin;
+		intersection.intersect_normal = intersection.isback ? -p.n : p.n;
 		return intersection;
 	}
 }

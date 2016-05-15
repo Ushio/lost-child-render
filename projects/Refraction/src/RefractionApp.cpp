@@ -57,10 +57,14 @@ void RefractionApp::draw()
 	gl::ScopedMatrices push;
 	gl::setMatrices(_camera);
 
+	gl::ScopedDepth depth(true);
+
 	{
 		gl::ScopedColor color(Color::gray(0.2f));
 		_plane->draw();
 	}
+
+	gl::drawCoordinateFrame();
 
 	lc::Plane plane = lc::make_plane_pn(lc::Vec3(), lc::Vec3(0.0, 1.0, 0.0));
 
@@ -71,16 +75,16 @@ void RefractionApp::draw()
 		lc::Ray ray(lc::Vec3(0.0, -1.0, 0.0), lc::Vec3(glm::cos(r), glm::sin(r), 0.0));
 
 		if (auto intersection = lc::intersect(ray, plane)) {
-			lc::Intersection i = *intersection;
-			gl::drawLine(ray.o, intersection->p);
+			lc::Vec3 p = intersection->intersect_position(ray);
+			gl::drawLine(ray.o, p);
 
 			double air_ior = 1.0;
 			double eta = intersection->isback ? _floor_ior / air_ior : air_ior / _floor_ior;
 
-			auto refract_dir = lc::refraction(ray.d, intersection->n, eta);
+			auto refract_dir = lc::refraction(ray.d, intersection->intersect_normal, eta);
 
 			gl::ScopedColor c(1.0f, 1.0f, 0.0f, 1.0f);
-			gl::drawLine(intersection->p, intersection->p + refract_dir * 5.0);
+			gl::drawLine(p, p + refract_dir * 5.0);
 		}
 		else {
 			gl::drawLine(ray.o, ray.o + ray.d * 5.0);

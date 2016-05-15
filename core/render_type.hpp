@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include <glm/glm.hpp>
+#include <glm/ext.hpp>
 
 namespace lc {
 	typedef glm::dvec3 Vec3;
