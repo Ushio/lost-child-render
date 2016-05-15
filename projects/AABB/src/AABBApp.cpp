@@ -44,6 +44,36 @@ void AABBApp::update()
 
 }
 
+void draw_wire_aabb(const lc::AABB &aabb, gl::VertBatch &vb) {
+	lc::Vec3 x_axis(aabb.max_position.x - aabb.min_position.x, 0.0, 0.0);
+	lc::Vec3 z_axis(0.0, 0.0, aabb.max_position.z - aabb.min_position.z);
+
+	std::array<lc::Vec3, 4> top = {
+		aabb.max_position - x_axis - z_axis,
+		aabb.max_position - x_axis,
+		aabb.max_position,
+		aabb.max_position - z_axis
+	};
+	std::array<lc::Vec3, 4> bottom = {
+		aabb.min_position,
+		aabb.min_position + z_axis,
+		aabb.min_position + x_axis + z_axis,
+		aabb.min_position + x_axis
+	};
+	for (int i = 0; i < 4; ++i) {
+		vb.vertex(top[i]);
+		vb.vertex(top[(i + 1) % 4]);
+	}
+
+	for (int i = 0; i < 4; ++i) {
+		vb.vertex(bottom[i]);
+		vb.vertex(bottom[(i + 1) % 4]);
+	}
+	for (int i = 0; i < 4; ++i) {
+		vb.vertex(top[i]);
+		vb.vertex(bottom[i]);
+	}
+}
 void AABBApp::draw()
 {
 	gl::clear(Color(0, 0, 0));
@@ -61,7 +91,10 @@ void AABBApp::draw()
 
 	lc::AABB aabb(lc::Vec3(-1.0, -2.0, -1.0), lc::Vec3(1.0, 2.0, 1.0));
 	
-	gl::drawStrokedCube(cinder::AxisAlignedBox((vec3)aabb.min_position, (vec3)aabb.max_position));
+	gl::VertBatch tri_vb(GL_LINES);
+	draw_wire_aabb(aabb, tri_vb);
+	tri_vb.draw();
+	// gl::drawStrokedCube(cinder::AxisAlignedBox((vec3)aabb.min_position, (vec3)aabb.max_position));
 
 	lc::Xor e;
 	for (int i = 0; i < 100; ++i) {

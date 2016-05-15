@@ -26,6 +26,9 @@ namespace lc {
 		}
 		return true;
 	}
+	inline bool empty(const AABB &aabb) {
+		return glm::any(glm::greaterThan(aabb.min_position, aabb.max_position));
+	}
 	inline boost::optional<Intersection> intersect(const Ray &ray, const AABB &aabb) {
 		auto p = ray.o;
 		auto d = ray.d;

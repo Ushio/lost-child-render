@@ -82,9 +82,9 @@ namespace lc {
 
 	template <class E>
 	Vec3 generate_on_sphere(RandomEngine<E> &engine) {
-		float z = generate_continuous(engine) * 2.0 - 1.0;
-		float phi = generate_continuous(engine) * glm::two_pi<double>();
-		float v = glm::sqrt(1.0 - z * z);
+		double z = generate_continuous(engine) * 2.0 - 1.0;
+		double phi = generate_continuous(engine) * glm::two_pi<double>();
+		double v = glm::sqrt(1.0 - z * z);
 		return Vec3(
 			v * glm::cos(phi),
 			v * glm::sin(phi),
