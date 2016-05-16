@@ -123,7 +123,8 @@ namespace lc {
 				std::tie(min_edge, max_edge) = std::minmax_element(compornents.begin(), compornents.end());
 
 				// 根拠のある数字ではないが、あまり計算が爆発しない程度
-				int separation = std::max((int)indices.size() >> 5, 2);
+				// int separation = std::max((int)indices.size() >> 6, 2);
+				int separation = glm::max((int)glm::sqrt((double)(indices.size())), 2);
 				double step = (*max_edge - *min_edge) / separation;
 
 				for (int i = 0; i < separation - 1; ++i) {

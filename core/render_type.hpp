@@ -3,8 +3,12 @@
 #include <glm/ext.hpp>
 
 namespace lc {
+	typedef glm::dvec4 Vec4;
 	typedef glm::dvec3 Vec3;
 	typedef glm::dvec2 Vec2;
+	typedef glm::dmat4 Mat4;
+	typedef glm::dmat3 Mat3;
+	typedef glm::dquat Quat;
 
 	/*
 	光線
