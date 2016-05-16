@@ -5,6 +5,7 @@
 #include "collision_aabb.hpp"
 #include "collision_triangle.hpp"
 #include <boost/optional.hpp>
+#include <boost/range.hpp>
 
 namespace lc {
 	static const double kCOST_INTERSECT_AABB = 1.0;
@@ -46,16 +47,12 @@ namespace lc {
 		inline int parent(int index) const {
 			return index >> 1;
 		}
-		//int depth_to_dimension(int depth) const {
-		//	return depth % 3;
-		//}
 
 		void build() {
 			if (_triangles.empty()) {
 				return;
 			}
 			_depth_count = glm::log2((int)_triangles.size());
-			// _depth_count = 1;
 
 			// ノードのメモリを確保
 			// Sum[2^k, {k, 0, n - 1}]
@@ -73,7 +70,6 @@ namespace lc {
 		}
 
 		void build_recursive(int depth, int parent) {
-			// int dimension = this->depth_to_dimension(depth);
 			int node_index = parent - 1;
 
 			// 最大深度に達したら、終わりにする
@@ -182,49 +178,6 @@ namespace lc {
 				return;
 			}
 
-			//// 適当だが部屋の中身が3個より少なくなったら、終わりにする
-			//if (indices.size() < 3) {
-			//	// done
-			//	return;
-			//}
-
-			//// 分配する
-			//// まあ、もっと高度なアルゴリズムはあるが、まずはもっとも単純に
-			//double border = 0.0f;
-			//for (int index : indices) {
-			//	for (int i = 0; i < 3; ++i) {
-			//		border += _triangles[index].v[i][dimension];
-			//	}
-			//}
-			//border /= (indices.size() * 3);
-
-
-			//_nodes[child_L_index].indices.reserve(indices.size() / 2);
-			//_nodes[child_R_index].indices.reserve(indices.size() / 2);
-
-			//for (int i = 0; i < indices.size(); ++i) {
-			//	int index = indices[i];
-			//	const Triangle &triangle = _triangles[index];
-
-			//	double value0 = _triangles[index].v[0][dimension];
-			//	double value1 = _triangles[index].v[1][dimension];
-			//	double value2 = _triangles[index].v[2][dimension];
-			//	if (value0 <= border || value1 <= border || value2 <= border) {
-			//		_nodes[child_L_index].indices.push_back(index);
-
-			//		for (int j = 0; j < 3; ++j) {
-			//			_nodes[child_L_index].aabb = expand(_nodes[child_L_index].aabb, triangle.v[j]);
-			//		}
-			//	}
-			//	if (border <= value0 || border <= value1 || border <= value2) {
-			//		_nodes[child_R_index].indices.push_back(index);
-
-			//		for (int j = 0; j < 3; ++j) {
-			//			_nodes[child_R_index].aabb = expand(_nodes[child_R_index].aabb, triangle.v[j]);
-			//		}
-			//	}
-			//}
-
 			// 分配が完了したら自身の分を破棄する
 			std::swap(_nodes[node_index].indices, std::vector<int>());
 
@@ -259,21 +212,17 @@ namespace lc {
 				return boost::none;
 			}
 
-			// 終端までやってきたので所属するポリゴンに総当たり
+			// 終端までやってきたので所属するポリゴンに総当たりして終了
 			if (_nodes[node_index].isTerminal()) {
 				boost::optional<BVHIntersection> r;
 				for (auto index : _nodes[node_index].indices) {
 					const Triangle &triangle = _triangles[index];
 					if (auto intersection = lc::intersect(ray, triangle)) {
-						if (!r) {
+						double tmin = r ? r->tmin : std::numeric_limits<double>::max();
+						if (intersection->tmin < tmin) {
 							r = BVHIntersection(*intersection, index);
+							r->triangle_index = index;
 						}
-						else {
-							if (intersection->tmin < r->tmin) {
-								r = BVHIntersection(*intersection, index);
-							}
-						}
-						r->triangle_index = index;
 					}
 				}
 				return r;
