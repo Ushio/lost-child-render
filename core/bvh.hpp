@@ -52,7 +52,7 @@ namespace lc {
 			if (_triangles.empty()) {
 				return;
 			}
-			_depth_count = glm::log2((int)_triangles.size());
+			_depth_count = glm::log2((int)_triangles.size() + 1);
 
 			// ノードのメモリを確保
 			// Sum[2^k, {k, 0, n - 1}]
@@ -61,7 +61,7 @@ namespace lc {
 
 			// 最初はルートノードにすべて分配
 			_nodes[0].indices.resize(_triangles.size());
-			for (int i = 0; i < _triangles.size(); ++i) {
+			for (std::size_t i = 0; i < _triangles.size(); ++i) {
 				_nodes[0].indices[i] = i;
 				_nodes[0].aabb = expand(_nodes[0].aabb, _triangles[i]);
 			}
@@ -109,7 +109,7 @@ namespace lc {
 			bool is_separate = false;
 			
 			for (int dimension = 0; dimension < 3; ++dimension) {
-				for (int i = 0; i < indices.size(); ++i) {
+				for (std::size_t i = 0; i < indices.size(); ++i) {
 					int index = indices[i];
 					const Triangle &triangle = _triangles[index];
 					for (int j = 0; j < 3; ++j) {
@@ -140,7 +140,7 @@ namespace lc {
 					aabb_R = AABB();
 
 					// ボーダーに基づいて振り分ける
-					for (int i = 0; i < indices.size(); ++i) {
+					for (std::size_t i = 0; i < indices.size(); ++i) {
 						int index = indices[i];
 						const Triangle &triangle = _triangles[index];
 

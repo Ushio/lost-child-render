@@ -72,11 +72,12 @@ void bvhApp::draw()
 	gl::ScopedMatrices push;
 	gl::setMatrices(_camera);
 
+	gl::ScopedDepth depth_test(true);
+
 	{
 		gl::ScopedColor color(Color::gray(0.2f));
 		_plane->draw();
 	}
-	// gl::drawCoordinateFrame();
 
 	{
 		gl::ScopedPolygonMode wire(GL_LINE);

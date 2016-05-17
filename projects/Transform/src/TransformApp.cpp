@@ -15,6 +15,7 @@
 #include <stack>
 #include <boost/range.hpp>
 #include <boost/range/numeric.hpp>
+#include <boost/format.hpp>
 
 
 using namespace ci;
@@ -36,12 +37,12 @@ public:
 
 	bool _show_all = false;
 	int _show_depth = 0;
+	float _offset = 0.0f;
 };
 
 void transformApp::setup()
 {
 	ui::initialize();
-
 
 	_camera.lookAt(vec3(0, 0.0f, 4.0f), vec3(0.0f));
 	_camera.setPerspective(40.0f, getWindowAspectRatio(), 0.01f, 100.0f);
@@ -74,32 +75,38 @@ void transformApp::draw()
 	gl::ScopedMatrices push;
 	gl::setMatrices(_camera);
 
+	gl::ScopedDepth depth_test(true);
+
 	{
 		gl::ScopedColor color(Color::gray(0.2f));
 		_plane->draw();
 	}
-	// gl::drawCoordinateFrame();
 
 	double elapsed = getElapsedSeconds();
 	lc::Mat4 mat;
+	mat = glm::translate(lc::Vec3(0.0, 0.0, _offset));
 	mat = glm::rotate(mat, elapsed * 0.1, lc::Vec3(0.0, 1.0, 0.0));
 
 	lc::Transform object_transform(mat);
 
 	{
 		gl::ScopedMatrices smat;
-		gl::ScopedPolygonMode wire(GL_LINE);
-
 		gl::multModelMatrix(mat);
+
+		gl::ScopedGlslProg shader(gl::getStockShader(gl::ShaderDef().color().lambert()));
+
 		gl::draw(*_mesh);
 	}
 
 
 	lc::Xor e;
 
-	for (int i = 0; i < 50; ++i) {
-		lc::Vec3 o = lc::generate_on_sphere(e) * glm::mix(1.5, 4.0, lc::generate_continuous(e));
-		lc::Ray ray(o, glm::normalize(lc::generate_on_sphere(e) * 0.5 - o));
+	int N = 100;
+	for (int i = 0; i < N; ++i) {
+		double s = (double)i / (N - 1);
+		double x = glm::mix(-0.6, 0.6, s);
+
+		lc::Ray ray(lc::Vec3(x, 3.0, 0.0), lc::Vec3(0.0, -1.0, 0.0));
 		lc::Ray local_ray = object_transform.to_local_ray(ray);
 		if (auto intersection = _bvh.intersect(local_ray)) {
 			auto p = object_transform.from_local_position(intersection->intersect_position(local_ray));
@@ -109,7 +116,7 @@ void transformApp::draw()
 
 			gl::ScopedColor c(1.0, 0.5, 0.0);
 			gl::drawCube((vec3)ray.o, vec3(0.05f));
-			gl::drawLine(o, p);
+			gl::drawLine(ray.o, p);
 			gl::drawSphere(p, 0.01f);
 			gl::drawLine(p, p + r * 0.1);
 		}
@@ -122,12 +129,14 @@ void transformApp::draw()
 
 	if (_show_all) {
 		gl::VertBatch vb(GL_LINES);
-		for (int i = 0; i < _bvh._nodes.size(); ++i) {
+		for (std::size_t i = 0; i < _bvh._nodes.size(); ++i) {
 			const lc::BVH::Node &node = _bvh._nodes[i];
 			if (lc::empty(node.aabb) == false) {
 				lc::draw_wire_aabb(node.aabb, vb);
 			}
 		}
+		gl::ScopedMatrices smat;
+		gl::multModelMatrix(mat);
 		vb.draw();
 	}
 	else {
@@ -145,6 +154,8 @@ void transformApp::draw()
 				lc::draw_wire_aabb(node.aabb, vb);
 			}
 		}
+		gl::ScopedMatrices smat;
+		gl::multModelMatrix(mat);
 		vb.draw();
 	}
 
@@ -152,6 +163,8 @@ void transformApp::draw()
 	ui::Checkbox("show all", &_show_all);
 	if (_show_all == false) {
 		ui::SliderInt("show depth", &_show_depth, 0, _bvh.depth_count() - 1);
+		ui::SliderFloat("offset", &_offset, -1.0f, 1.0f);
+		
 	}
 }
 
