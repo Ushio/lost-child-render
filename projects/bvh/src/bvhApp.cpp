@@ -13,7 +13,7 @@
 
 #include <boost/range.hpp>
 #include <boost/range/numeric.hpp>
-
+#include <boost/format.hpp>
 
 using namespace ci;
 using namespace ci::app;

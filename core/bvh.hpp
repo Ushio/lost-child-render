@@ -122,9 +122,9 @@ namespace lc {
 				std::vector<double>::iterator max_edge;
 				std::tie(min_edge, max_edge) = std::minmax_element(compornents.begin(), compornents.end());
 
-				// 根拠のある数字ではないが、あまり計算が爆発しない程度
-				// int separation = std::max((int)indices.size() >> 6, 2);
-				int separation = glm::max((int)glm::sqrt((double)(indices.size())), 2);
+				// あまり巨大化しないように
+				// また、必ず偶数に
+				int separation = glm::max((int)glm::sqrt((double)(indices.size())), 2) >> 1 << 1;
 				double step = (*max_edge - *min_edge) / separation;
 
 				for (int i = 0; i < separation - 1; ++i) {
@@ -133,8 +133,8 @@ namespace lc {
 					// クリア
 					indices_L.clear();
 					indices_R.clear();
-					indices_L.reserve(indices.size() / 2);
-					indices_R.reserve(indices.size() / 2);
+					indices_L.reserve(indices.size() >> 1);
+					indices_R.reserve(indices.size() >> 1);
 
 					aabb_L = AABB();
 					aabb_R = AABB();
