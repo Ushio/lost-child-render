@@ -7,6 +7,7 @@ namespace lc {
 	平行移動、回転、スケール
 	*/
 	struct Transform {
+		Transform() {}
 		Transform(const Mat4 &mat) {
 			_o_transform_w = mat;
 			_o_transform_w_i = glm::inverse(mat);
