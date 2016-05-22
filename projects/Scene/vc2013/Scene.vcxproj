@@ -50,7 +50,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\include;"..\..\..\..\cinder_0.9.0_vc2013\include";..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\lib\imgui;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\include;..\..\..\..\cinder_0.9.0_vc2013\include;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\lib\imgui;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\include;$(ProjectDir)..\..\..\core</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_WIN32_WINNT=0x0601;_WINDOWS;NOMINMAX;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -76,7 +76,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\include;"..\..\..\..\cinder_0.9.0_vc2013\include";..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\lib\imgui;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\include;..\..\..\..\cinder_0.9.0_vc2013\include;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\lib\imgui;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\include;$(ProjectDir)..\..\..\core</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_WIN32_WINNT=0x0601;_WINDOWS;NOMINMAX;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader />
