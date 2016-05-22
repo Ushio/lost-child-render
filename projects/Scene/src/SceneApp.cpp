@@ -5,17 +5,96 @@
 #include "cinder/ObjLoader.h"
 #include "CinderImGui.h"
 
+#define LC_USE_STD_FILESYSTEM
+
 #include "collision_triangle.hpp"
 #include "bvh.hpp"
 #include "helper_cinder/mesh_util.hpp"
 #include "helper_cinder/draw_wire_aabb.hpp"
 #include "random_engine.hpp"
 #include "transform.hpp"
+#include "collision_sphere.hpp"
 
 #include <stack>
+#include <chrono>
 #include <boost/range.hpp>
 #include <boost/range/numeric.hpp>
 #include <boost/format.hpp>
+
+#include <boost/variant.hpp>
+
+
+
+/*
+	シーン
+*/
+namespace lc {
+	struct LambertMaterial {
+		LambertMaterial() {}
+		LambertMaterial(Vec3 albedo_) :albedo(albedo_) {}
+
+		Vec3 albedo = Vec3(1.0);
+	};
+	struct EmissiveMaterial {
+		EmissiveMaterial() {}
+		EmissiveMaterial(Vec3 color_) :color(color_) {}
+
+		Vec3 color = Vec3(1.0);
+	};
+
+	typedef boost::variant<EmissiveMaterial, LambertMaterial> Material;
+
+	struct MicroSurface {
+		Vec3 p;
+		Vec3 n;
+		Vec3 vn; /* virtual normal */
+		bool isback = false;
+		Material m;
+	};
+
+	struct SphereObject {
+		Sphere collider;
+		Material material;
+	};
+
+	struct TriangleMeshObject {
+		std::string mesh;
+
+		/* reconstruct member */
+		BVH bvh;
+	};
+
+	struct ConelBox {
+		double hsize = 5.0;
+
+		/* reconstruct member */
+		
+	};
+
+	typedef boost::variant<SphereObject, TriangleMeshObject> SceneObject;
+
+	struct Scene {
+		Scene(const fs::path &root) {
+			std::cout << root << std::endl;
+		}
+		std::vector<SceneObject> _objects;
+	};
+
+	// 
+	// direct samplingはオブジェクトごとに考えることにする
+
+	// テクスチャ付きメッシュ
+	//struct TexturedTriangleMeshObject {
+	//	std::string mesh;
+	//  std::string texture_albedo;
+	//	BVH bvh;
+	//};
+}
+
+// cinder
+namespace lc {
+
+}
 
 
 using namespace ci;
@@ -28,7 +107,7 @@ public:
 	void mouseDown(MouseEvent event) override;
 	void update() override;
 	void draw() override;
-
+	
 	CameraPersp	_camera;
 	CameraUi _cameraUi;
 	gl::BatchRef _plane;
@@ -39,6 +118,8 @@ public:
 void SceneApp::setup()
 {
 	ui::initialize();
+
+	lc::Scene scene(getAssetPath(""));
 
 	_camera.lookAt(vec3(0, 0.0f, 4.0f), vec3(0.0f));
 	_camera.setPerspective(40.0f, getWindowAspectRatio(), 0.01f, 100.0f);

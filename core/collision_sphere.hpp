@@ -4,6 +4,7 @@
 #include "collision.hpp"
 #include <boost/optional.hpp>
 
+
 namespace lc {
 	struct Sphere {
 		double radius = 1.0;

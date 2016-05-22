@@ -22,3 +22,19 @@ namespace lc {
 		Ray(Vec3 origin, Vec3 direction) :o(origin), d(direction) {}
 	};
 }
+
+/*
+ファイルシステム選択
+*/
+#ifdef LC_USE_BOOST_FILESYSTEM
+#include <boost/filesystem.hpp>
+namespace lc {
+	namespace fs = boost::filesystem;
+}
+#endif
+#ifdef LC_USE_STD_FILESYSTEM
+#include <filesystem>
+namespace lc {
+	namespace fs = std::tr2::sys;
+}
+#endif
