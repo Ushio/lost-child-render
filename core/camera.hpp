@@ -14,8 +14,7 @@ namespace lc {
 			Vec3 up = { 0.0, 1.0, 0.0 };
 		};
 		Camera(const Settings &settings) :_settings(settings) {
-			Mat4 m = glm::lookAt(settings.eye, settings.look_at, settings.up);
-			_rayTransform = Transform(m);
+
 		}
 
 		/*
@@ -35,10 +34,9 @@ namespace lc {
 				-1.0
 			);
 
-			return _rayTransform.to_local_ray(Ray(Vec3(), glm::normalize(to)));
+			return Ray(Vec3(), glm::normalize(to));
 		}
 	private:
 		Settings _settings;
-		Transform _rayTransform;
 	};
 }

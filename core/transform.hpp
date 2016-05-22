@@ -34,12 +34,22 @@ namespace lc {
 		Ray from_local_ray(const Ray &ray) const {
 			return Ray(from_local_position(ray.o), from_local_normal(ray.d));
 		}
+		
+		Mat4 matrix() const {
+			return _o_transform_w;
+		}
+		Mat4 inverse_matrix() const {
+			return _o_transform_w_i;
+		}
 	private:
 		Mat4 _o_transform_w;
 		Mat3 _d_transform_w;
 		Mat4 _o_transform_w_i;
 		Mat3 _d_transform_w_i;
 	};
+	inline Transform operator*(const Transform &lhs, const Transform &rhs) {
+		return Transform(lhs.matrix() * rhs.matrix());
+	}
 }
 
 
