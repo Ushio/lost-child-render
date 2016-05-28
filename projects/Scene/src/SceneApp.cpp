@@ -11,6 +11,7 @@
 #include "bvh.hpp"
 #include "helper_cinder/mesh_util.hpp"
 #include "helper_cinder/draw_wire_aabb.hpp"
+#include "helper_cinder/draw_camera.hpp"
 #include "random_engine.hpp"
 #include "transform.hpp"
 #include "camera.hpp"
@@ -158,10 +159,15 @@ namespace lc {
 		}
 	};
 
-	inline void draw_scene(const Scene &scene) {
+	inline void draw_scene(const Scene &scene, int image_width, int image_height) {
 		for (int i = 0; i < scene.objects.size(); ++i) {
 			scene.objects[i].apply_visitor(DrawObjectVisitor());
 		}
+
+		cinder::gl::ScopedMatrices smat;
+		cinder::gl::ScopedColor c(0.5, 0.5, 0.5);
+		cinder::gl::multModelMatrix(scene.viewTransform.inverse_matrix());
+		lc::draw_camera(scene.camera, image_width, image_height, 10.0);
 	}
 }
 
@@ -232,13 +238,18 @@ void SceneApp::draw()
 	
 	lc::Scene scene;
 
+	lc::Vec3 eye(0.0, 0.0, 7.0);
+	lc::Vec3 look_at;
+	lc::Vec3 up = { 0.0, 1.0, 0.0 };
+	scene.viewTransform = lc::Transform(glm::lookAt(eye, look_at, up));
+
 	scene.objects.push_back(lc::ConelBox(5.0));
 	scene.objects.push_back(lc::SphereObject(
 		lc::Sphere(lc::Vec3(0.0), 1.0),
 		lc::LambertMaterial(lc::Vec3(1.0))
 	));
 
-	lc::draw_scene(scene);
+	lc::draw_scene(scene, 512, 512);
 }
 
 CINDER_APP(SceneApp, RendererGl, [](App::Settings *settings) {
