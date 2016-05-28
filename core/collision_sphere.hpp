@@ -2,13 +2,15 @@
 
 #include "render_type.hpp"
 #include "collision.hpp"
-#include <boost/optional.hpp>
 
+#include <boost/optional.hpp>
 
 namespace lc {
 	struct Sphere {
-		double radius = 1.0;
+		Sphere() {}
+		Sphere(const Vec3 &c, double r) :center(c), radius(r) {}
 		Vec3 center;
+		double radius = 1.0;
 	};
 
 	struct SphereIntersection : public Intersection {

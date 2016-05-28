@@ -20,6 +20,11 @@ namespace lc {
 
 		Ray() {}
 		Ray(Vec3 origin, Vec3 direction) :o(origin), d(direction) {}
+
+		template<class Archive>
+		void serialize(Archive &ar) {
+			ar(CEREAL_NVP(o), CEREAL_NVP(d));
+		}
 	};
 }
 

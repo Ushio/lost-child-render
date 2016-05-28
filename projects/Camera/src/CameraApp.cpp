@@ -109,7 +109,6 @@ void CameraApp::draw()
 	lc::Transform modelViewTransform = viewTransform * modelTransform;
 
 	lc::Camera::Settings camera_settings;
-	camera_settings.eye = _eye;
 	camera_settings.fovy = _fovy;
 	lc::Camera camera(camera_settings);
 

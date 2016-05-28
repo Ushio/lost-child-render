@@ -9,10 +9,8 @@ namespace lc {
 	public:
 		struct Settings {
 			double fovy = glm::radians(45.0);
-			Vec3 eye = { 0.0, 0.0, -1.0 };
-			Vec3 look_at;
-			Vec3 up = { 0.0, 1.0, 0.0 };
 		};
+		Camera() {}
 		Camera(const Settings &settings) :_settings(settings) {
 
 		}
