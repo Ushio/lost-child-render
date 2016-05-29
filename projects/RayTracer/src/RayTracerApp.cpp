@@ -32,6 +32,7 @@
 static const int wide = 256;
 
 namespace lc {
+	// typedef MersenneTwister EngineType;
 	typedef Xor EngineType;
 
 	struct AccumlationBuffer {
@@ -89,7 +90,7 @@ namespace lc {
 			}
 		}
 
-		trace_p = glm::max(trace_p, 0.00001);
+		trace_p = glm::max(trace_p, 0.01);
 
 		if (trace_p <= generate_continuous(engine)) {
 			// ロシアンルーレットによる終了
@@ -99,21 +100,46 @@ namespace lc {
 		if (auto lambert = boost::get<LambertMaterial>(&intersection->m)) {
 			Vec3 omega_o = -ray.d;
 
-			auto sample = generate_cosine_weight_hemisphere(engine);
+			double pdf = 0.0;
+			Vec3 omega_i;
 
-			// 半球定義
-			Vec3 yaxis = intersection->n;
-			Vec3 xaxis;
-			Vec3 zaxis;
-			if (0.999f < fabs(yaxis.z)) {
-				xaxis = normalize(cross(Vec3(0.0, -1.0, 0.0), yaxis));
-			}
-			else {
-				xaxis = normalize(cross(Vec3(0.0, 0.0, 1.0), yaxis));
-			}
-			zaxis = cross(xaxis, yaxis);
+			//if (generate_continuous(engine) < 0.5) {
+			//	sample = generate_cosine_weight_hemisphere(engine);
+			//}
+			//else {
+			//	sample = sample_important(scene, intersection->p, engine);
+			//}
+			// sample = sample_important(scene, intersection->p, engine);
+			// sample = generate_cosine_weight_hemisphere(engine);
 
-			Vec3 omega_i = sample.value.x * xaxis + sample.value.y * yaxis + sample.value.z * zaxis;
+			
+			//  Sample<Vec3>  = sample_important(scene, intersection->p, engine);
+
+			if (generate_continuous(engine) < 0.5) {
+				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
+
+				// 半球定義
+				Vec3 yaxis = intersection->n;
+				Vec3 xaxis;
+				Vec3 zaxis;
+				if (0.999 < glm::abs(yaxis.z)) {
+					xaxis = glm::normalize(glm::cross(Vec3(0.0, -1.0, 0.0), yaxis));
+				}
+				else {
+					xaxis = glm::normalize(glm::cross(Vec3(0.0, 0.0, 1.0), yaxis));
+				}
+				zaxis = glm::cross(xaxis, yaxis);
+
+				omega_i = cos_sample.value.x * xaxis + cos_sample.value.y * yaxis + cos_sample.value.z * zaxis;
+				pdf = cos_sample.pdf;
+			} else {
+				Sample<Vec3> sample_imp = sample_important_position(scene, intersection->p, engine);
+				omega_i = glm::normalize(sample_imp.value - intersection->p);
+				pdf = sample_imp.pdf;
+				if (glm::dot(omega_i, intersection->n) <= 0.0001) {
+					return Vec3(0.0);
+				}
+			}
 
 			Ray new_ray;
 			new_ray.o = intersection->p + omega_i * kReflectionBias;
@@ -122,7 +148,7 @@ namespace lc {
 			double cos_term = glm::dot(intersection->n, omega_i);
 			double brdf = glm::one_over_pi<double>();
 			Vec3 L = radiance(new_ray, scene, engine, lambert->albedo, depth + 1) / trace_p;
-			return lambert->albedo * brdf * cos_term * L / sample.pdf;
+			return lambert->albedo * brdf * cos_term * L / pdf;
 		}
 		if (auto emissive = boost::get<EmissiveMaterial>(&intersection->m)) {
 			return emissive->color;
@@ -194,27 +220,46 @@ public:
 	cinder::Surface32fRef _surface;
 	gl::Texture2dRef _texture;
 	gl::FboRef _fbo;
+	gl::GlslProgRef _previewShader;
+
+	bool _render = false;
+	float _previewScale = 1.0f;
+	float _previewGamma = 2.2f;
 };
 
 void RayTracerApp::setup()
 {
 	ui::initialize();
 
-	_camera.lookAt(vec3(0, 0.0f, 6.0f), vec3(0.0f));
-	_camera.setPerspective(40.0f, getWindowAspectRatio(), 0.01f, 100.0f);
+	_camera.lookAt(vec3(0, 0.0f, 60.0f), vec3(0.0f));
+	_camera.setPerspective(40.0f, getWindowAspectRatio(), 0.01f, 500.0f);
 	_cameraUi = CameraUi(&_camera, getWindow());
 
 	auto colorShader = gl::getStockShader(gl::ShaderDef().color());
-	_plane = gl::Batch::create(geom::WirePlane().size(vec2(10.0f)).subdivisions(ivec2(10)), colorShader);
+	_plane = gl::Batch::create(geom::WirePlane().size(vec2(100.0f)).subdivisions(ivec2(10)), colorShader);
 
 	//cinder::ObjLoader loader(loadAsset("bunny.obj"));
 	//_mesh = cinder::TriMesh::create(loader);
 	//_bvh.set_triangle(lc::to_triangles(_mesh));
 	//_bvh.build();
 
+	gl::Fbo::Format format = gl::Fbo::Format()
+		.colorTexture()
+		.disableDepth();
+	_fbo = gl::Fbo::create(wide, wide, format);
+	{
+		gl::ScopedFramebuffer fb(_fbo);
+		gl::ScopedViewport vp(ivec2(0), _fbo->getSize());
+		gl::ScopedMatrices m;
+		gl::clear(Color(0.25, 0.25, 0.25));
+	}
+	_previewShader = gl::GlslProg::create(gl::GlslProg::Format()
+		.vertex(loadAsset("preview_shader/shader.vert"))
+		.fragment(loadAsset("preview_shader/shader.frag")));
+
 	_buffer = new lc::AccumlationBuffer(wide, wide);
 
-	lc::Vec3 eye(0.0, 0.0, 8.0);
+	lc::Vec3 eye(0.0, 0.0, 80.0);
 	lc::Vec3 look_at;
 	lc::Vec3 up = { 0.0, 1.0, 0.0 };
 
@@ -223,15 +268,15 @@ void RayTracerApp::setup()
 	_scene.camera = lc::Camera(camera_settings);
 	_scene.viewTransform = lc::Transform(glm::lookAt(eye, look_at, up));
 
-	_scene.objects.push_back(lc::ConelBoxObject(5.0));
+	_scene.objects.push_back(lc::ConelBoxObject(50.0));
 	_scene.objects.push_back(lc::SphereObject(
-		lc::Sphere(lc::Vec3(0.0, -1.5, 0.0), 1.0),
+		lc::Sphere(lc::Vec3(0.0, -15, 0.0), 10.0),
 		lc::LambertMaterial(lc::Vec3(1.0))
 	));
 
 	auto light = lc::SphereObject(
-		lc::Sphere(lc::Vec3(0.0, 2.5, 0.0), 1.0),
-		lc::EmissiveMaterial(lc::Vec3(5.0))
+		lc::Sphere(lc::Vec3(0.0, 24.0, 0.0), 2.0),
+		lc::EmissiveMaterial(lc::Vec3(30.0))
 	);
 	_scene.objects.push_back(light);
 
@@ -263,21 +308,45 @@ void RayTracerApp::draw()
 	}
 
 	lc::draw_scene(_scene, wide, wide);
+
+	bool fbo_update = false;
 	
 	ui::ScopedWindow window("Params", glm::vec2(200, 300));
-	if (ui::Button("step")) {
-		for (int i = 0; i < 10; ++i) {
+	ui::Text("rays: %d", _buffer->_iteration);
+	ui::Checkbox("render", &_render);
+
+	if (_render) {
+		for (int i = 0; i < 5; ++i) {
 			lc::step(*_buffer, _scene);
 		}
 		_surface = lc::to_surface(*_buffer);
 		_texture = gl::Texture2d::create(*_surface);
+
+		fbo_update = true;
+	}
+	if (ui::SliderFloat("preview scale", &_previewScale, 0.0f, 5.0f)) {
+		fbo_update = true;
+	}
+	if (ui::SliderFloat("preview gamma", &_previewGamma, 0.0f, 4.0f)) {
+		fbo_update = true;
+	}
+	
+	if (fbo_update && _texture) {
+		gl::ScopedFramebuffer fb(_fbo);
+		gl::ScopedViewport vp(ivec2(0), _fbo->getSize());
+		gl::ScopedMatrices m;
+		gl::setMatricesWindow(_fbo->getSize());
+
+		gl::ScopedGlslProg shaderScp(_previewShader);
+		gl::ScopedTextureBind texBindScp(_texture);
+		_previewShader->uniform("u_scale", _previewScale);
+		_previewShader->uniform("u_gamma_correction", 1.0f / _previewGamma);
+		gl::drawSolidRect(_texture->getBounds());
 	}
 
-	if (_texture) {
-		ui::Image(_texture, ImVec2(_texture->getWidth(), _texture->getHeight()));
-	}
+	ui::Image(_fbo->getTexture2d(GL_COLOR_ATTACHMENT0), ImVec2(_fbo->getWidth(), _fbo->getHeight()));
 }
 
 CINDER_APP(RayTracerApp, RendererGl, [](App::Settings *settings) {
-	settings->setConsoleWindowEnabled(false);
+	settings->setConsoleWindowEnabled(true);
 });

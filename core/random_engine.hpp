@@ -92,6 +92,8 @@ namespace lc {
 	}
 	template <class E>
 	Sample<Vec3> generate_cosine_weight_hemisphere(RandomEngine<E> &engine) {
+		double eps = 0.01;
+
 		double eps_1 = generate_continuous(engine);
 		double eps_2 = generate_continuous(engine);
 
@@ -105,7 +107,7 @@ namespace lc {
 
 		Sample<Vec3> sample;
 		sample.value = Vec3(x, y, z);
-		sample.pdf = cos_theta * glm::one_over_pi<double>();
+		sample.pdf = glm::max(cos_theta * glm::one_over_pi<double>(), eps);
 		return sample;
 	}
 }

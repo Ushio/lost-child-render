@@ -44,6 +44,6 @@ namespace lc {
 		cinder::gl::ScopedMatrices smat;
 		cinder::gl::ScopedColor c(0.5, 0.5, 0.5);
 		cinder::gl::multModelMatrix(scene.viewTransform.inverse_matrix());
-		lc::draw_camera(scene.camera, image_width, image_height, 10.0);
+		lc::draw_camera(scene.camera, image_width, image_height, 100.0);
 	}
 }

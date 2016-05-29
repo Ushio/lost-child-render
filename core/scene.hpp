@@ -139,7 +139,8 @@ namespace lc {
 		/* p が重点サンプルの基準点 */
 		template <class E>
 		Sample<Vec3> sample(const Vec3 &p, RandomEngine<E> &engine) const {
-			const double eps = 0.000001;
+			const double eps = 0.001;
+			const double pdf_min = 0.1;
 
 			double distance_pq;
 			Vec3 q;
@@ -154,12 +155,8 @@ namespace lc {
 			s.value = q;
 			double A = 4.0 * glm::pi<double>() * shape.radius * shape.radius;
 			double cos_alpha = glm::abs(glm::dot(qn, (p - q) / distance_pq));
-			if (cos_alpha < 0.0001) {
-				s.pdf = 1.0 / eps;
-			}
-			else {
-				s.pdf = distance_pq * distance_pq / (A * cos_alpha);
-			}
+			s.pdf = distance_pq * distance_pq / (A * cos_alpha);
+			s.pdf = glm::max(s.pdf, pdf_min);
 			return s;
 		}
 	};
@@ -172,7 +169,7 @@ namespace lc {
 	};
 
 	template <class E>
-	Sample<Vec3> sample_important(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine) {
+	Sample<Vec3> sample_important_position(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine) {
 		return scene.importances[engine() % scene.importances.size()].sample(p, engine);
 	}
 
