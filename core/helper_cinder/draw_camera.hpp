@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "camera.hpp"
+#include "cinder/gl/gl.h"
 
 namespace lc {
 	inline void draw_camera(const Camera &camera, int image_width, int image_height, double ray_length) {

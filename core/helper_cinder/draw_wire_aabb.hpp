@@ -3,6 +3,7 @@
 #include "cinder/gl/gl.h"
 #include "render_type.hpp"
 #include "collision_aabb.hpp"
+
 namespace lc {
 	inline void draw_wire_aabb(const lc::AABB &aabb, cinder::gl::VertBatch &vb) {
 		lc::Vec3 x_axis(aabb.max_position.x - aabb.min_position.x, 0.0, 0.0);
