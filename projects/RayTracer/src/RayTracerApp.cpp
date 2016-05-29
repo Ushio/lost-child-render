@@ -19,6 +19,7 @@
 #include "transform.hpp"
 #include "camera.hpp"
 #include "collision_sphere.hpp"
+#include "refraction.hpp"
 #include "material.hpp"
 #include "scene.hpp"
 
@@ -33,7 +34,9 @@ static const int wide = 256;
 
 namespace lc {
 	// typedef MersenneTwister EngineType;
+	// typedef LCGs EngineType;
 	typedef Xor EngineType;
+	// typedef Xor128 EngineType;
 
 	struct AccumlationBuffer {
 		AccumlationBuffer(int width, int height, int random_skip = 50):_width(width), _height(height), _data(width * height){
@@ -97,24 +100,18 @@ namespace lc {
 			return Vec3();
 		}
 
-		if (auto lambert = boost::get<LambertMaterial>(&intersection->m)) {
-			Vec3 omega_o = -ray.d;
+		Vec3 omega_o = -ray.d;
 
+		if (auto lambert = boost::get<LambertMaterial>(&intersection->m)) {
 			double pdf = 0.0;
 			Vec3 omega_i;
 
-			//if (generate_continuous(engine) < 0.5) {
-			//	sample = generate_cosine_weight_hemisphere(engine);
-			//}
-			//else {
-			//	sample = sample_important(scene, intersection->p, engine);
-			//}
-			// sample = sample_important(scene, intersection->p, engine);
-			// sample = generate_cosine_weight_hemisphere(engine);
-
-			
-			//  Sample<Vec3>  = sample_important(scene, intersection->p, engine);
-
+			//double x = depth;
+			//double a = -2.0;
+			//double b = 4.0;
+			//double direct_p = 1.0 / (1.0 + glm::exp(-a * (x - b)));
+			//double indirect_p = 1.0 - direct_p;
+			// double indirect = depth < 3 ? 1.0 : 0.0;
 			if (generate_continuous(engine) < 0.5) {
 				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
 
@@ -137,7 +134,22 @@ namespace lc {
 				omega_i = glm::normalize(sample_imp.value - intersection->p);
 				pdf = sample_imp.pdf;
 				if (glm::dot(omega_i, intersection->n) <= 0.0001) {
-					return Vec3(0.0);
+					Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
+
+					// ”¼‹…’è‹`
+					Vec3 yaxis = intersection->n;
+					Vec3 xaxis;
+					Vec3 zaxis;
+					if (0.999 < glm::abs(yaxis.z)) {
+						xaxis = glm::normalize(glm::cross(Vec3(0.0, -1.0, 0.0), yaxis));
+					}
+					else {
+						xaxis = glm::normalize(glm::cross(Vec3(0.0, 0.0, 1.0), yaxis));
+					}
+					zaxis = glm::cross(xaxis, yaxis);
+
+					omega_i = cos_sample.value.x * xaxis + cos_sample.value.y * yaxis + cos_sample.value.z * zaxis;
+					pdf = cos_sample.pdf;
 				}
 			}
 
@@ -149,6 +161,39 @@ namespace lc {
 			double brdf = glm::one_over_pi<double>();
 			Vec3 L = radiance(new_ray, scene, engine, lambert->albedo, depth + 1) / trace_p;
 			return lambert->albedo * brdf * cos_term * L / pdf;
+		}
+		if (auto refrac = boost::get<RefractionMaterial>(&intersection->m)) {
+			double eta = intersection->isback ? refrac->ior / 1.0 : 1.0 / refrac->ior;
+			auto omega_i_refract = refraction(-omega_o, intersection->n, eta);
+			auto omega_i_reflect = glm::reflect(-omega_o, intersection->n);
+
+			auto fresnel = [](double costheta, double f0) {
+				double f = f0 + (1.0 - f0) * glm::pow(1.0 - costheta, 5.0);
+				return f;
+			};
+			double fresnel_value = fresnel(dot(omega_o, intersection->n), 0.02);
+
+			Ray refract_ray;
+			refract_ray.o = intersection->p + omega_i_refract * kReflectionBias;
+			refract_ray.d = omega_i_refract;
+
+			Ray reflect_ray;
+			reflect_ray.o = intersection->p + omega_i_reflect * kReflectionBias;
+			reflect_ray.d = omega_i_reflect;
+
+			if (depth == 0) {
+				auto refract_color = radiance(refract_ray, scene, engine, importance, depth + 1);
+				auto reflect_color = radiance(reflect_ray, scene, engine, importance, depth + 1);
+				return mix(refract_color, reflect_color, fresnel_value) / trace_p;
+			}
+			else {
+				if (fresnel_value < generate_continuous(engine)) {
+					return radiance(refract_ray, scene, engine, importance, depth + 1) / trace_p;
+				}
+				else {
+					return radiance(reflect_ray, scene, engine, importance, depth + 1) / trace_p;
+				}
+			}
 		}
 		if (auto emissive = boost::get<EmissiveMaterial>(&intersection->m)) {
 			return emissive->color;
@@ -269,17 +314,24 @@ void RayTracerApp::setup()
 	_scene.viewTransform = lc::Transform(glm::lookAt(eye, look_at, up));
 
 	_scene.objects.push_back(lc::ConelBoxObject(50.0));
-	_scene.objects.push_back(lc::SphereObject(
-		lc::Sphere(lc::Vec3(0.0, -15, 0.0), 10.0),
-		lc::LambertMaterial(lc::Vec3(1.0))
-	));
+	//_scene.objects.push_back(lc::SphereObject(
+	//	lc::Sphere(lc::Vec3(0.0, -15, 0.0), 10.0),
+	//	lc::LambertMaterial(lc::Vec3(1.0))
+	//));
+
+	auto grass = lc::SphereObject(
+		lc::Sphere(lc::Vec3(10.0, -15, 10.0), 10.0),
+		lc::RefractionMaterial(1.4)
+	);
+	_scene.objects.push_back(grass);
 
 	auto light = lc::SphereObject(
-		lc::Sphere(lc::Vec3(0.0, 24.0, 0.0), 2.0),
-		lc::EmissiveMaterial(lc::Vec3(30.0))
+		lc::Sphere(lc::Vec3(0.0, 20.0, 0.0), 5.0),
+		lc::EmissiveMaterial(lc::Vec3(10.0))
 	);
 	_scene.objects.push_back(light);
 
+	//_scene.importances.push_back(lc::ImportantArea(grass.sphere));
 	_scene.importances.push_back(lc::ImportantArea(light.sphere));
 }
 
@@ -307,12 +359,14 @@ void RayTracerApp::draw()
 		_plane->draw();
 	}
 
-	lc::draw_scene(_scene, wide, wide);
+	if (_render == false) {
+		lc::draw_scene(_scene, wide, wide);
+	}
 
 	bool fbo_update = false;
 	
 	ui::ScopedWindow window("Params", glm::vec2(200, 300));
-	ui::Text("rays: %d", _buffer->_iteration);
+	ui::Text("samples: %d", _buffer->_iteration);
 	ui::Checkbox("render", &_render);
 
 	if (_render) {

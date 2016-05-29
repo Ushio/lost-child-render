@@ -6,6 +6,7 @@
 #include <inttypes.h>
 
 #include <glm/glm.hpp>
+#include <boost/random.hpp>
 
 #include "render_type.hpp"
 
@@ -16,7 +17,32 @@ namespace lc {
 			return static_cast<T*>(this)->operator()();
 		}
 	};
+	struct LCGs : public RandomEngine<LCGs> {
+		LCGs() {
 
+		}
+		LCGs(uint32_t seed):_e(seed){
+		}
+		uint32_t operator()() {
+			boost::uniform_int<int64_t> d(0, std::numeric_limits<uint32_t>::max());
+			boost::variate_generator<boost::minstd_rand&, boost::uniform_int<int64_t>> gen(_e, d) ;
+			return gen();
+		}
+		boost::minstd_rand _e;
+	};
+	struct Xor : public RandomEngine<Xor> {
+		Xor() {
+
+		}
+		Xor(uint32_t seed) {
+			_y = seed;
+		}
+		uint32_t _y = 2463534242;
+		uint32_t operator()() {
+			_y = _y ^ (_y << 13); _y = _y ^ (_y >> 17);
+			return _y = _y ^ (_y << 5);
+		}
+	};
 	struct Xor128 : public RandomEngine<Xor128> {
 		Xor128() {
 
@@ -36,19 +62,7 @@ namespace lc {
 			return _w = (_w ^ (_w >> 19)) ^ (t ^ (t >> 8));
 		}
 	};
-	struct Xor : public RandomEngine<Xor> {
-		Xor() {
 
-		}
-		Xor(uint32_t seed) {
-			_y = seed;
-		}
-		uint32_t _y = 2463534242;
-		uint32_t operator()() {
-			_y = _y ^ (_y << 13); _y = _y ^ (_y >> 17);
-			return _y = _y ^ (_y << 5);
-		}
-	};
 	struct MersenneTwister : public RandomEngine<MersenneTwister> {
 		MersenneTwister() {
 
@@ -92,7 +106,7 @@ namespace lc {
 	}
 	template <class E>
 	Sample<Vec3> generate_cosine_weight_hemisphere(RandomEngine<E> &engine) {
-		double eps = 0.01;
+		double eps = 0.0001;
 
 		double eps_1 = generate_continuous(engine);
 		double eps_2 = generate_continuous(engine);

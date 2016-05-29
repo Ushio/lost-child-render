@@ -16,8 +16,13 @@ namespace lc {
 
 		Vec3 color = Vec3(1.0);
 	};
+	struct RefractionMaterial {
+		RefractionMaterial() {}
+		RefractionMaterial(double ior_) :ior(ior_) {}
+		double ior = 1.4;
+	};
 
-	typedef boost::variant<EmissiveMaterial, LambertMaterial> Material;
+	typedef boost::variant<EmissiveMaterial, LambertMaterial, RefractionMaterial> Material;
 
 	struct MicroSurface {
 		Vec3 p;

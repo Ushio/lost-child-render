@@ -27,9 +27,9 @@ namespace lc {
 		ConelBoxObject() :ConelBoxObject(5.0) {}
 		ConelBoxObject(double size) {
 			double hsize = size * 0.5;
-			Vec3 R(1.0, 0.0, 0.0);
-			Vec3 G(0.0, 1.0, 0.0);
-			Vec3 W(1.0);
+			Vec3 R(0.75, 0.25, 0.25);
+			Vec3 G(0.25, 0.25, 0.75);
+			Vec3 W(0.75);
 
 			Vec3 ps[] = {
 				Vec3(-hsize, hsize, -hsize),
@@ -140,7 +140,7 @@ namespace lc {
 		template <class E>
 		Sample<Vec3> sample(const Vec3 &p, RandomEngine<E> &engine) const {
 			const double eps = 0.001;
-			const double pdf_min = 0.1;
+			const double pdf_min = 0.05;
 
 			double distance_pq;
 			Vec3 q;
