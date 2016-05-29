@@ -28,7 +28,7 @@ namespace lc {
 
 			Vec3 to(
 				left + (right - left) * image_x / double(image_width - 1),
-				bottom + (top - bottom) * image_y / double(image_height - 1),
+				top + (bottom - top) * image_y / double(image_height - 1),
 				-1.0
 			);
 

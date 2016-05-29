@@ -103,11 +103,9 @@ namespace lc {
 		double x = sin(theta) * sin(phi);
 		double y = cos_theta;
 
-		static const double one_divice_by_pi = 1.0 / glm::pi<double>();
-
 		Sample<Vec3> sample;
 		sample.value = Vec3(x, y, z);
-		sample.pdf = cos_theta * one_divice_by_pi;
+		sample.pdf = cos_theta * glm::one_over_pi<double>();
 		return sample;
 	}
 }
