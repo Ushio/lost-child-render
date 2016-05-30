@@ -21,8 +21,11 @@ namespace lc {
 		RefractionMaterial(double ior_) :ior(ior_) {}
 		double ior = 1.4;
 	};
+	struct PerfectSpecularMaterial {
+		PerfectSpecularMaterial() {}
+	};
 
-	typedef boost::variant<EmissiveMaterial, LambertMaterial, RefractionMaterial> Material;
+	typedef boost::variant<EmissiveMaterial, LambertMaterial, RefractionMaterial, PerfectSpecularMaterial> Material;
 
 	struct MicroSurface {
 		Vec3 p;

@@ -80,7 +80,7 @@ namespace lc {
 			trace_p = 1.0;
 		}
 		else if (kMaxDepth < depth) {
-			trace_p = 0.0;
+			return Vec3(0.0);
 		}
 		else {
 			if (auto emissive = boost::get<EmissiveMaterial>(&intersection->m)) {
@@ -195,6 +195,13 @@ namespace lc {
 				}
 			}
 		}
+		if (auto specular = boost::get<PerfectSpecularMaterial>(&intersection->m)) {
+			auto omega_i_reflect = glm::reflect(-omega_o, intersection->n);
+			Ray reflect_ray;
+			reflect_ray.o = intersection->p + omega_i_reflect * kReflectionBias;
+			reflect_ray.d = omega_i_reflect;
+			return radiance(reflect_ray, scene, engine, importance, depth + 1) / trace_p;
+		}
 		if (auto emissive = boost::get<EmissiveMaterial>(&intersection->m)) {
 			return emissive->color;
 		}
@@ -267,6 +274,8 @@ public:
 	gl::FboRef _fbo;
 	gl::GlslProgRef _previewShader;
 
+	double _renderTime = 0.0;
+
 	bool _render = false;
 	float _previewScale = 1.0f;
 	float _previewGamma = 2.2f;
@@ -304,12 +313,12 @@ void RayTracerApp::setup()
 
 	_buffer = new lc::AccumlationBuffer(wide, wide);
 
-	lc::Vec3 eye(0.0, 0.0, 80.0);
+	lc::Vec3 eye(0.0, 0.0, 60.0);
 	lc::Vec3 look_at;
 	lc::Vec3 up = { 0.0, 1.0, 0.0 };
 
 	lc::Camera::Settings camera_settings;
-	camera_settings.fovy = glm::radians(60.0);
+	camera_settings.fovy = glm::radians(70.0);
 	_scene.camera = lc::Camera(camera_settings);
 	_scene.viewTransform = lc::Transform(glm::lookAt(eye, look_at, up));
 
@@ -318,6 +327,18 @@ void RayTracerApp::setup()
 	//	lc::Sphere(lc::Vec3(0.0, -15, 0.0), 10.0),
 	//	lc::LambertMaterial(lc::Vec3(1.0))
 	//));
+
+	// ƒeƒXƒg
+	//_scene.objects.push_back(lc::SphereObject(
+	//	lc::Sphere(lc::Vec3(0.0, 0.0, 0.0), 5.0),
+	//	lc::LambertMaterial(lc::Vec3(0.75))
+	//));
+
+	auto spec = lc::SphereObject(
+		lc::Sphere(lc::Vec3(-10.0, -15, -10.0), 10.0),
+		lc::PerfectSpecularMaterial()
+	);
+	_scene.objects.push_back(spec);
 
 	auto grass = lc::SphereObject(
 		lc::Sphere(lc::Vec3(10.0, -15, 10.0), 10.0),
@@ -331,7 +352,8 @@ void RayTracerApp::setup()
 	);
 	_scene.objects.push_back(light);
 
-	//_scene.importances.push_back(lc::ImportantArea(grass.sphere));
+	// _scene.importances.push_back(lc::ImportantArea(spec.sphere));
+	// _scene.importances.push_back(lc::ImportantArea(grass.sphere));
 	_scene.importances.push_back(lc::ImportantArea(light.sphere));
 }
 
@@ -367,12 +389,19 @@ void RayTracerApp::draw()
 	
 	ui::ScopedWindow window("Params", glm::vec2(200, 300));
 	ui::Text("samples: %d", _buffer->_iteration);
+	ui::Text("time: %.2f s", _renderTime);
+	ui::Text("rays per miliseconds: %.2f", _buffer->_width * _buffer->_height * _buffer->_iteration * 0.001 / (_renderTime + 0.0001));
 	ui::Checkbox("render", &_render);
 
 	if (_render) {
+		double beg = getElapsedSeconds();
 		for (int i = 0; i < 5; ++i) {
 			lc::step(*_buffer, _scene);
 		}
+		double duration = getElapsedSeconds() - beg;
+
+		_renderTime += duration;
+
 		_surface = lc::to_surface(*_buffer);
 		_texture = gl::Texture2d::create(*_surface);
 
