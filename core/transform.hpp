@@ -50,6 +50,12 @@ namespace lc {
 	inline Transform operator*(const Transform &lhs, const Transform &rhs) {
 		return Transform(lhs.matrix() * rhs.matrix());
 	}
-}
 
+	struct BasisTransform {
+	public:
+		BasisTransform(const Vec3 &yaxis) {
+
+		}
+	};
+}
 

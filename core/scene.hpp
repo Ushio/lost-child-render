@@ -9,17 +9,6 @@
 #include "material.hpp"
 
 namespace lc {
-	template <class F>
-	Vec3 marching_normal(const Vec3 &p, F f) {
-		double d = 0.001;
-		return glm::normalize(Vec3(
-			f(p + Vec3(d, 0.0, 0.0)) - f(p + Vec3(-d, 0.0, 0.0)),
-			f(p + Vec3(0.0, d, 0.0)) - f(p + Vec3(0.0, -d, 0.0)),
-			f(p + Vec3(0.0, 0.0, d)) - f(p + Vec3(0.0, 0.0, -d))
-		));
-	}
-
-
 	struct SphereObject {
 		SphereObject(const Sphere &s, const Material &m) :sphere(s), material(m) {}
 		Sphere sphere;
@@ -215,59 +204,6 @@ namespace lc {
 				}
 			}
 		}
-
-		//// テストレイマーチング
-		//Vec3 o = ray.o;
-		//double r_min = 0.0;
-		//bool hit = false;
-		//auto udRoundBox = [](const Vec3 & p, const Vec3 & b, double r) {
-		//	return glm::length(glm::max(glm::abs(p) - b, 0.0)) - r;
-		//};
-		//auto sdSphere = [](const Vec3 &  p, double s) {
-		//	return glm::length(p) - s;
-		//};
-		////auto smin = [](double a, double b, double k) {
-		////	double res = glm::exp(-k*a) + exp(-k*b);
-		////	return -glm::log(res) / k;
-		////};
-		//auto smin = [](double a, double b, double k)
-		//{
-		//	double h = glm::clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
-		//	return glm::mix(b, a, h) - k * h* (1.0 - h);
-		//};
-		//auto distance_function = [=](Vec3 p) {
-		//	p += Vec3(5.0, 5.0, 0.0);
-		//	double a = sdSphere(p + Vec3(-8.0, 0.0, 0.0), 5.0);
-		//	double b = sdSphere(p, 5.0);
-		//	double c = sdSphere(p + Vec3(-3.0, 5.0, -4.0), 5.0);
-		//	double d = sdSphere(p + Vec3(6.0, 1.0, -3.0), 5.0);
-		//	double k = 2.0;
-		//	return smin(smin(a, b, k), smin(c, d, k), k);
-		//	// return udRoundBox(p, Vec3(5.0, 5.0, 5.0), 2.0);
-		//};
-		//double d;
-		//for (int i = 0; i < 100; ++i) {
-		//	d = distance_function(ray.o + ray.d * r_min);
-		//	if (1000.0 < r_min) {
-		//		break;
-		//	}
-		//	r_min += d;
-		//}
-		//if (d < 0.001) {
-		//	hit = true;
-		//}
-		//if (hit && r_min < tmin) {
-		//	MicroSurface m;
-		//	m.p = ray.o + ray.d * r_min;
-		//	m.n = marching_normal(m.p, distance_function);
-		//	m.vn = m.n;
-		//	m.isback = false;
-		//	// m.m = LambertMaterial(Vec3(1.0));
-		//	m.m = PerfectSpecularMaterial();
-		//	if (glm::any(glm::isfinite(m.n))) {
-		//		return m;
-		//	}
-		//}
 
 		if (tmin != std::numeric_limits<double>::max()) {
 			return min_intersection.apply_visitor(MicroSurfaceVisitor(ray));

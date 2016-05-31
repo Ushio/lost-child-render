@@ -1,4 +1,4 @@
-#include "cinder/app/App.h"
+ï»¿#include "cinder/app/App.h"
 #include "cinder/app/RendererGl.h"
 #include "cinder/gl/gl.h"
 #include "cinder/CameraUi.h"
@@ -73,8 +73,8 @@ namespace lc {
 			return Vec3(0.0);
 		}
 
-		// 0.0f => Ž¸”s—¦100%
-		// 1.0f => Ž¸”s—¦0%
+		// 0.0f => å¤±æ•—çŽ‡100%
+		// 1.0f => å¤±æ•—çŽ‡0%
 		double trace_p;
 		if (depth < kMinDepth) {
 			trace_p = 1.0;
@@ -87,7 +87,7 @@ namespace lc {
 				trace_p = 1.0;
 			}
 			else {
-				// ˆÄŠOd—v‚©‚à
+				// æ¡ˆå¤–é‡è¦ã‹ã‚‚
 				trace_p = glm::max(glm::max(importance.r, importance.g), importance.b) * 0.9;
 				trace_p = glm::clamp(trace_p, 0.0, 1.0);
 			}
@@ -96,7 +96,7 @@ namespace lc {
 		trace_p = glm::max(trace_p, 0.01);
 
 		if (trace_p <= generate_continuous(engine)) {
-			// ƒƒVƒAƒ“ƒ‹[ƒŒƒbƒg‚É‚æ‚éI—¹
+			// ãƒ­ã‚·ã‚¢ãƒ³ãƒ«ãƒ¼ãƒ¬ãƒƒãƒˆã«ã‚ˆã‚‹çµ‚äº†
 			return Vec3();
 		}
 
@@ -115,7 +115,7 @@ namespace lc {
 			if (generate_continuous(engine) < 0.5) {
 				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
 
-				// ”¼‹…’è‹`
+				// åŠçƒå®šç¾©
 				Vec3 yaxis = intersection->n;
 				Vec3 xaxis;
 				Vec3 zaxis;
@@ -136,7 +136,7 @@ namespace lc {
 				if (glm::dot(omega_i, intersection->n) <= 0.0001) {
 					Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
 
-					// ”¼‹…’è‹`
+					// åŠçƒå®šç¾©
 					Vec3 yaxis = intersection->n;
 					Vec3 xaxis;
 					Vec3 zaxis;
@@ -208,20 +208,30 @@ namespace lc {
 		return Vec3(0.1);
 	}
 
-	inline void step(AccumlationBuffer &buffer, const Scene &scene) {
-		concurrency::parallel_for<int>(0, buffer._height, [&buffer, &scene](int y) {
+	inline void step(AccumlationBuffer &buffer, const Scene &scene, int aa_sample) {
+		double aa_sample_inverse = 1.0 / aa_sample;
+		concurrency::parallel_for<int>(0, buffer._height, [&buffer, &scene, aa_sample, aa_sample_inverse](int y) {
 			for (int x = 0; x < buffer._width; ++x) {
 				int index = y * buffer._width + x;
 				AccumlationBuffer::Pixel &pixel = buffer._data[index];
 
-				/* ƒrƒ…[‹óŠÔ */
-				auto ray_view = scene.camera.generate_ray(x, y, buffer._width, buffer._height);
+				Vec3 color;
+				for (int aai = 0; aai < aa_sample; ++aai) {
+					auto aa_offset = Vec2(
+						generate_continuous(pixel.engine) - 0.5,
+						generate_continuous(pixel.engine) - 0.5
+					);
 
-				/* ƒ[ƒ‹ƒh‹óŠÔ */
-				auto ray = scene.viewTransform.to_local_ray(ray_view);
+					/* ãƒ“ãƒ¥ãƒ¼ç©ºé–“ */
+					auto ray_view = scene.camera.generate_ray(x + aa_offset.x, y + aa_offset.y, buffer._width, buffer._height);
 
-				auto color = radiance(ray, scene, pixel.engine, Vec3(1.0), 0);
-				pixel.color += color;
+					/* ãƒ¯ãƒ¼ãƒ«ãƒ‰ç©ºé–“ */
+					auto ray = scene.viewTransform.to_local_ray(ray_view);
+
+					color += radiance(ray, scene, pixel.engine, Vec3(1.0), 0);
+				}
+
+				pixel.color += color * aa_sample_inverse;
 			}
 		});
 
@@ -245,6 +255,51 @@ namespace lc {
 
 				for (int i = 0; i < 3; ++i) {
 					dstRGB[i] = static_cast<float>(color[i]);
+				}
+			}
+		});
+		return surface;
+	}
+
+	// ã™ã“ã¶ã‚‹å¾®å¦™ãªæ°—é…
+	inline cinder::Surface32fRef median_filter(cinder::Surface32fRef image) {
+		int width = image->getWidth();
+		int height = image->getHeight();
+		auto surface = cinder::Surface32f::create(width, height, false);
+		float *lineHeadDst = surface->getData();
+		float *lineHeadSrc = image->getData();
+		concurrency::parallel_for<int>(0, height, [lineHeadDst, lineHeadSrc, width, height](int y) {
+			for (int x = 0; x < width; ++x) {
+				int index = y * width + x;
+				struct Pix {
+					Pix() {}
+					Pix(const float *c):color(c[0], c[1], c[2]), luminance(0.299f*c[0] + 0.587f*c[1] + 0.114f*c[2]){
+					}
+					glm::vec3 color;
+					float luminance;
+				};
+
+				std::array<Pix, 5> p3x3;
+				//p3x3[0] = Pix(lineHeadSrc + (std::max(y - 1, 0) * width + std::max(x - 1, 0)) * 3);
+				p3x3[0] = Pix(lineHeadSrc + (std::max(y - 1, 0) * width + x) * 3);
+				//p3x3[2] = Pix(lineHeadSrc + (std::max(y - 1, 0) * width + std::min(x + 1, width - 1)) * 3);
+
+				p3x3[1] = Pix(lineHeadSrc + (y * width + std::max(x - 1, 0)) * 3);
+				p3x3[2] = Pix(lineHeadSrc + (y * width + x) * 3);
+				p3x3[3] = Pix(lineHeadSrc + (y * width + std::min(x + 1, width - 1)) * 3);
+
+				//p3x3[6] = Pix(lineHeadSrc + (std::min(y + 1, height - 1) * width + std::max(x - 1, 0)) * 3);
+				p3x3[4] = Pix(lineHeadSrc + (std::min(y + 1, height - 1) * width + x) * 3);
+				//p3x3[8] = Pix(lineHeadSrc + (std::min(y + 1, height - 1) * width + std::min(x + 1, width - 1)) * 3);
+				
+				std::nth_element(p3x3.begin(), p3x3.begin() + 2, p3x3.end(), [](const Pix &a, const Pix &b) { 
+					return a.luminance < b.luminance;
+				});
+
+				Pix p = p3x3[2];
+				float *dstRGB = lineHeadDst + (y * width + x) * 3;
+				for (int i = 0; i < 3; ++i) {
+					dstRGB[i] = p.color[i];
 				}
 			}
 		});
@@ -279,6 +334,7 @@ public:
 	bool _render = false;
 	float _previewScale = 1.0f;
 	float _previewGamma = 2.2f;
+	bool _median = false;
 };
 
 void RayTracerApp::setup()
@@ -328,7 +384,7 @@ void RayTracerApp::setup()
 	//	lc::LambertMaterial(lc::Vec3(1.0))
 	//));
 
-	// ƒeƒXƒg
+	// ãƒ†ã‚¹ãƒˆ
 	//_scene.objects.push_back(lc::SphereObject(
 	//	lc::Sphere(lc::Vec3(0.0, 0.0, 0.0), 5.0),
 	//	lc::LambertMaterial(lc::Vec3(0.75))
@@ -385,24 +441,29 @@ void RayTracerApp::draw()
 		lc::draw_scene(_scene, wide, wide);
 	}
 
+	const int aa = 2;
 	bool fbo_update = false;
 	
 	ui::ScopedWindow window("Params", glm::vec2(200, 300));
 	ui::Text("samples: %d", _buffer->_iteration);
 	ui::Text("time: %.2f s", _renderTime);
-	ui::Text("rays per miliseconds: %.2f", _buffer->_width * _buffer->_height * _buffer->_iteration * 0.001 / (_renderTime + 0.0001));
+	ui::Text("rays per miliseconds: %.2f", aa * _buffer->_width * _buffer->_height * _buffer->_iteration * 0.001 / (_renderTime + 0.0001));
 	ui::Checkbox("render", &_render);
 
 	if (_render) {
 		double beg = getElapsedSeconds();
 		for (int i = 0; i < 5; ++i) {
-			lc::step(*_buffer, _scene);
+			lc::step(*_buffer, _scene, aa);
 		}
 		double duration = getElapsedSeconds() - beg;
 
 		_renderTime += duration;
 
-		_surface = lc::to_surface(*_buffer);
+		if (_median) {
+			_surface = lc::median_filter(lc::to_surface(*_buffer));
+		} else {
+			_surface = lc::to_surface(*_buffer);
+		}
 		_texture = gl::Texture2d::create(*_surface);
 
 		fbo_update = true;
@@ -413,6 +474,8 @@ void RayTracerApp::draw()
 	if (ui::SliderFloat("preview gamma", &_previewGamma, 0.0f, 4.0f)) {
 		fbo_update = true;
 	}
+	ui::Checkbox("median", &_median);
+	
 	
 	if (fbo_update && _texture) {
 		gl::ScopedFramebuffer fb(_fbo);
