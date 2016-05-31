@@ -164,35 +164,28 @@ namespace lc {
 		}
 		if (auto refrac = boost::get<RefractionMaterial>(&intersection->m)) {
 			double eta = intersection->isback ? refrac->ior / 1.0 : 1.0 / refrac->ior;
-			auto omega_i_refract = refraction(-omega_o, intersection->n, eta);
-			auto omega_i_reflect = glm::reflect(-omega_o, intersection->n);
-
+			
 			auto fresnel = [](double costheta, double f0) {
 				double f = f0 + (1.0 - f0) * glm::pow(1.0 - costheta, 5.0);
 				return f;
 			};
 			double fresnel_value = fresnel(dot(omega_o, intersection->n), 0.02);
 
-			Ray refract_ray;
-			refract_ray.o = intersection->p + omega_i_refract * kReflectionBias;
-			refract_ray.d = omega_i_refract;
+			if (fresnel_value < generate_continuous(engine)) {
+				auto omega_i_refract = refraction(-omega_o, intersection->n, eta);
 
-			Ray reflect_ray;
-			reflect_ray.o = intersection->p + omega_i_reflect * kReflectionBias;
-			reflect_ray.d = omega_i_reflect;
-
-			if (depth == 0) {
-				auto refract_color = radiance(refract_ray, scene, engine, importance, depth + 1);
-				auto reflect_color = radiance(reflect_ray, scene, engine, importance, depth + 1);
-				return mix(refract_color, reflect_color, fresnel_value) / trace_p;
+				Ray refract_ray;
+				refract_ray.o = intersection->p + omega_i_refract * kReflectionBias;
+				refract_ray.d = omega_i_refract;
+				return radiance(refract_ray, scene, engine, importance, depth + 1) / trace_p;
 			}
 			else {
-				if (fresnel_value < generate_continuous(engine)) {
-					return radiance(refract_ray, scene, engine, importance, depth + 1) / trace_p;
-				}
-				else {
-					return radiance(reflect_ray, scene, engine, importance, depth + 1) / trace_p;
-				}
+				auto omega_i_reflect = glm::reflect(-omega_o, intersection->n);
+
+				Ray reflect_ray;
+				reflect_ray.o = intersection->p + omega_i_reflect * kReflectionBias;
+				reflect_ray.d = omega_i_reflect;
+				return radiance(reflect_ray, scene, engine, importance, depth + 1) / trace_p;
 			}
 		}
 		if (auto specular = boost::get<PerfectSpecularMaterial>(&intersection->m)) {
