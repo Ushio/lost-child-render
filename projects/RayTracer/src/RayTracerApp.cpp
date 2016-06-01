@@ -106,28 +106,14 @@ namespace lc {
 			double pdf = 0.0;
 			Vec3 omega_i;
 
-			//double x = depth;
-			//double a = -2.0;
-			//double b = 4.0;
-			//double direct_p = 1.0 / (1.0 + glm::exp(-a * (x - b)));
-			//double indirect_p = 1.0 - direct_p;
-			// double indirect = depth < 3 ? 1.0 : 0.0;
+			//Sample<Vec3> dir_a;
+			//Sample<Vec3> dir_b;
+
+			HemisphereTransform hemisphereTransform(intersection->n);
+
 			if (generate_continuous(engine) < 0.5) {
 				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
-
-				// 半球定義
-				Vec3 yaxis = intersection->n;
-				Vec3 xaxis;
-				Vec3 zaxis;
-				if (0.999 < glm::abs(yaxis.z)) {
-					xaxis = glm::normalize(glm::cross(Vec3(0.0, -1.0, 0.0), yaxis));
-				}
-				else {
-					xaxis = glm::normalize(glm::cross(Vec3(0.0, 0.0, 1.0), yaxis));
-				}
-				zaxis = glm::cross(xaxis, yaxis);
-
-				omega_i = cos_sample.value.x * xaxis + cos_sample.value.y * yaxis + cos_sample.value.z * zaxis;
+				omega_i = hemisphereTransform.transform(cos_sample.value);
 				pdf = cos_sample.pdf;
 			} else {
 				Sample<Vec3> sample_imp = sample_important_position(scene, intersection->p, engine);
@@ -135,20 +121,7 @@ namespace lc {
 				pdf = sample_imp.pdf;
 				if (glm::dot(omega_i, intersection->n) <= 0.0001) {
 					Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
-
-					// 半球定義
-					Vec3 yaxis = intersection->n;
-					Vec3 xaxis;
-					Vec3 zaxis;
-					if (0.999 < glm::abs(yaxis.z)) {
-						xaxis = glm::normalize(glm::cross(Vec3(0.0, -1.0, 0.0), yaxis));
-					}
-					else {
-						xaxis = glm::normalize(glm::cross(Vec3(0.0, 0.0, 1.0), yaxis));
-					}
-					zaxis = glm::cross(xaxis, yaxis);
-
-					omega_i = cos_sample.value.x * xaxis + cos_sample.value.y * yaxis + cos_sample.value.z * zaxis;
+					omega_i = hemisphereTransform.transform(cos_sample.value);
 					pdf = cos_sample.pdf;
 				}
 			}
@@ -394,6 +367,28 @@ void RayTracerApp::setup()
 		lc::RefractionMaterial(1.4)
 	);
 	_scene.objects.push_back(grass);
+
+
+	//cinder::ObjLoader loader(loadAsset("dragon.obj"));
+	//auto mesh = cinder::TriMesh::create(loader);
+
+	// TODO scaleバグ
+
+	// auto mesh = cinder::TriMesh::create(cinder::geom::Sphere().radius(10.0));
+
+	/*auto dragon = lc::TriangleMeshObject();
+	dragon.bvh.set_triangle(lc::to_triangles(mesh));
+	for (int i = 0; i < dragon.bvh._triangles.size(); ++i) {
+		for (int j = 0; j < 3; ++j) {
+			dragon.bvh._triangles[i].v[j] *= 30.0;
+		}
+	}
+	dragon.bvh.build();
+	lc::Mat4 dragonMat;
+	dragonMat = glm::translate(dragonMat, lc::Vec3(0.0, -20.0, 0.0));
+	dragon.transform = lc::Transform(dragonMat);
+	dragon.material = lc::RefractionMaterial(1.4);
+	_scene.objects.push_back(dragon);*/
 
 	auto light = lc::SphereObject(
 		lc::Sphere(lc::Vec3(0.0, 20.0, 0.0), 5.0),

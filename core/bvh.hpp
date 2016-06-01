@@ -191,6 +191,7 @@ namespace lc {
 		}
 
 		struct BVHIntersection : public TriangleIntersection {
+			BVHIntersection(){}
 			BVHIntersection(const TriangleIntersection& intersection, int index) :TriangleIntersection(intersection), triangle_index(index) {
 			}
 			int triangle_index = -1;

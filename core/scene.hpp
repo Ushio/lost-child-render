@@ -13,14 +13,13 @@ namespace lc {
 		SphereObject(const Sphere &s, const Material &m) :sphere(s), material(m) {}
 		Sphere sphere;
 		Material material;
-		bool use_importance = true;
+		// bool use_importance = true;
 	};
 
 	struct TriangleMeshObject {
-		std::string mesh;
-
-		/* reconstruct member */
 		BVH bvh;
+		Material material;
+		Transform transform;
 	};
 
 	struct ConelBoxObject {
@@ -93,7 +92,7 @@ namespace lc {
 	}
 
 
-	typedef boost::variant<SphereObject, ConelBoxObject> SceneObject;
+	typedef boost::variant<SphereObject, ConelBoxObject, TriangleMeshObject> SceneObject;
 
 	struct SphereObjectIntersection {
 		const SphereObject *o = nullptr;
@@ -103,7 +102,11 @@ namespace lc {
 		const ConelBoxObject *o = nullptr;
 		ConelBoxIntersection intersection;
 	};
-	typedef boost::variant<SphereObjectIntersection, ConelBoxObjectIntersection> ObjectIntersection;
+	struct TriangleMeshObjectIntersection {
+		const TriangleMeshObject *o = nullptr;
+		BVH::BVHIntersection intersection;
+	};
+	typedef boost::variant<SphereObjectIntersection, ConelBoxObjectIntersection, TriangleMeshObjectIntersection> ObjectIntersection;
 
 	struct MicroSurfaceVisitor : public boost::static_visitor<MicroSurface> {
 		MicroSurfaceVisitor(const Ray &r) :ray(r) {}
@@ -123,6 +126,20 @@ namespace lc {
 			m.vn = m.n;
 			m.m = LambertMaterial(intersection.intersection.triangle.color);
 			m.isback = intersection.intersection.isback;
+			return m;
+		}
+		MicroSurface operator()(const TriangleMeshObjectIntersection &intersection) {
+			MicroSurface m;
+			m.p = intersection.intersection.intersect_position(intersection.o->transform.to_local_ray(ray));
+			m.n = intersection.intersection.intersect_normal(intersection.o->bvh._triangles[intersection.intersection.triangle_index]);
+			m.vn = m.n;
+			m.m = intersection.o->material;
+			m.isback = intersection.intersection.isback;
+			
+			m.p = intersection.o->transform.from_local_position(m.p);
+			m.n = intersection.o->transform.from_local_normal(m.n);
+			m.vn = intersection.o->transform.from_local_normal(m.vn);
+
 			return m;
 		}
 		Ray ray;
@@ -200,6 +217,18 @@ namespace lc {
 
 						tmin = intersection->tmin;
 						min_intersection = soi;
+					}
+				}
+			}
+			if (auto *c = boost::get<TriangleMeshObject>(&scene.objects[i])) {
+				if (auto intersection = c->bvh.intersect(c->transform.to_local_ray(ray))) {
+					if (intersection->tmin < tmin) {
+						TriangleMeshObjectIntersection tmoi;
+						tmoi.intersection = *intersection;
+						tmoi.o = c;
+
+						tmin = intersection->tmin;
+						min_intersection = tmoi;
 					}
 				}
 			}

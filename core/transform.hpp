@@ -51,11 +51,24 @@ namespace lc {
 		return Transform(lhs.matrix() * rhs.matrix());
 	}
 
-	struct BasisTransform {
+	// +y を軸とする半球を、任意のyaxisに向けて回転する
+	struct HemisphereTransform {
 	public:
-		BasisTransform(const Vec3 &yaxis) {
-
+		HemisphereTransform(const Vec3 &yaxis):_yaxis(yaxis){
+			if (0.999 < glm::abs(yaxis.z)) {
+				_xaxis = glm::normalize(glm::cross(Vec3(0.0, -1.0, 0.0), yaxis));
+			}
+			else {
+				_xaxis = glm::normalize(glm::cross(Vec3(0.0, 0.0, 1.0), yaxis));
+			}
+			_zaxis = glm::cross(_xaxis, _yaxis);
 		}
+		Vec3 transform(const Vec3 &direction) const {
+			return direction.x * _xaxis + direction.y * _yaxis + direction.z * _zaxis;
+		}
+		Vec3 _yaxis;
+		Vec3 _xaxis;
+		Vec3 _zaxis;
 	};
 }
 
