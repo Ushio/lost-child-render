@@ -61,6 +61,7 @@ namespace lc {
 		int _height = 0;
 		std::vector<Pixel> _data;
 		int _iteration = 0;
+		int _ray_count = 0;
 	};
 
 	static const int kMaxDepth = 100;
@@ -101,16 +102,53 @@ namespace lc {
 		}
 
 		Vec3 omega_o = -ray.d;
-
 		if (auto lambert = boost::get<LambertMaterial>(&intersection->m)) {
 			double pdf = 0.0;
 			Vec3 omega_i;
-
-			//Sample<Vec3> dir_a;
-			//Sample<Vec3> dir_b;
+/*
+			struct SampleDir {
+				Vec3 value;
+				double pdf;
+				double w;
+			};
+			SampleDir dir_a;
+			SampleDir dir_b;
 
 			HemisphereTransform hemisphereTransform(intersection->n);
 
+			{
+				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
+				dir_a.value = hemisphereTransform.transform(cos_sample.value);
+				dir_a.pdf = cos_sample.pdf;
+				dir_a.w = cos_sample.pdf * glm::pi<double>();
+			}
+			{
+				Sample<Vec3> sample_imp = sample_important_position(scene, intersection->p, engine);
+				dir_b.value = glm::normalize(sample_imp.value - intersection->p);
+				dir_b,pdf = sample_imp.pdf;
+				dir_b.w = sample_imp.pdf / 100.0;
+
+				if (glm::dot(dir_b.value, intersection->n) <= 0.0001) {
+					dir_b = dir_a;
+				}
+			}
+
+			double ab = 0.0001 + dir_a.w + dir_b.w;
+			double ap = (dir_a.w / ab);
+			static int counter = 0;
+			if (counter++ % 100000 == 0) {
+				printf("ap: %f\n", ap);
+			}
+			if (generate_continuous(engine) < ap) {
+				omega_i = dir_a.value;
+				pdf = dir_a.pdf;
+			}
+			else {
+				omega_i = dir_b.value;
+				pdf = dir_b.pdf;
+			}*/
+
+			HemisphereTransform hemisphereTransform(intersection->n);
 			if (generate_continuous(engine) < 0.5) {
 				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
 				omega_i = hemisphereTransform.transform(cos_sample.value);
@@ -119,6 +157,7 @@ namespace lc {
 				Sample<Vec3> sample_imp = sample_important_position(scene, intersection->p, engine);
 				omega_i = glm::normalize(sample_imp.value - intersection->p);
 				pdf = sample_imp.pdf;
+
 				if (glm::dot(omega_i, intersection->n) <= 0.0001) {
 					Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
 					omega_i = hemisphereTransform.transform(cos_sample.value);
@@ -132,7 +171,10 @@ namespace lc {
 
 			double cos_term = glm::dot(intersection->n, omega_i);
 			double brdf = glm::one_over_pi<double>();
-			Vec3 L = radiance(new_ray, scene, engine, lambert->albedo, depth + 1) / trace_p;
+			Vec3 L = radiance(new_ray, scene, engine, lambert->albedo * importance, depth + 1) / trace_p;
+			//if (glm::any(glm::greaterThan(L, Vec3(500.0)))) {
+			//	printf("big: %d, %.2f, %.2f, %.2f\n", depth, L.x, L.y, L.z);
+			//}
 			return lambert->albedo * brdf * cos_term * L / pdf;
 		}
 		if (auto refrac = boost::get<RefractionMaterial>(&intersection->m)) {
@@ -196,12 +238,17 @@ namespace lc {
 
 					color += radiance(ray, scene, pixel.engine, Vec3(1.0), 0);
 				}
+				color *= aa_sample_inverse;
 
-				pixel.color += color * aa_sample_inverse;
+				// TODO 対症療法すぎるだろうか
+				if (glm::all(glm::lessThan(color, Vec3(100.0)))) {
+					pixel.color += color;
+				}
 			}
 		});
 
 		buffer._iteration += 1;
+		buffer._ray_count += aa_sample;
 	}
 }
 
@@ -271,6 +318,8 @@ namespace lc {
 		});
 		return surface;
 	}
+
+	
 }
 
 using namespace ci;
@@ -302,6 +351,8 @@ public:
 	float _previewGamma = 2.2f;
 	bool _median = false;
 };
+
+
 
 void RayTracerApp::setup()
 {

@@ -1,6 +1,8 @@
 ﻿#pragma once
 
 #include <boost/variant.hpp>
+#include <boost/function.hpp>
+
 
 #include "random_engine.hpp"
 #include "transform.hpp"
@@ -11,9 +13,9 @@
 namespace lc {
 	struct SphereObject {
 		SphereObject(const Sphere &s, const Material &m) :sphere(s), material(m) {}
+
 		Sphere sphere;
 		Material material;
-		// bool use_importance = true;
 	};
 
 	struct TriangleMeshObject {
@@ -67,83 +69,8 @@ namespace lc {
 		};
 		std::vector<ColorTriangle> triangles;
 	};
-	struct ConelBoxIntersection : public Intersection {
-		Vec3 intersect_normal() const {
-			return triangle_normal(triangle.triangle, isback);
-		}
-		ConelBoxObject::ColorTriangle triangle;
-		bool isback = false;
-	};
-	inline boost::optional<ConelBoxIntersection> intersect(const Ray &ray, const ConelBoxObject &b) {
-		boost::optional<ConelBoxIntersection> r;
-		for (int i = 0; i < b.triangles.size(); ++i) {
-			if (auto intersection = intersect(ray, b.triangles[i].triangle)) {
-				double tmin = r ? r->tmin : std::numeric_limits<double>::max();
-				if (intersection->tmin < tmin) {
-					ConelBoxIntersection newIntersection;
-					newIntersection.tmin = intersection->tmin;
-					newIntersection.isback = intersection->isback;
-					newIntersection.triangle = b.triangles[i];
-					r = newIntersection;
-				}
-			}
-		}
-		return r;
-	}
-
 
 	typedef boost::variant<SphereObject, ConelBoxObject, TriangleMeshObject> SceneObject;
-
-	struct SphereObjectIntersection {
-		const SphereObject *o = nullptr;
-		SphereIntersection intersection;
-	};
-	struct ConelBoxObjectIntersection {
-		const ConelBoxObject *o = nullptr;
-		ConelBoxIntersection intersection;
-	};
-	struct TriangleMeshObjectIntersection {
-		const TriangleMeshObject *o = nullptr;
-		BVH::BVHIntersection intersection;
-	};
-	typedef boost::variant<SphereObjectIntersection, ConelBoxObjectIntersection, TriangleMeshObjectIntersection> ObjectIntersection;
-
-	struct MicroSurfaceVisitor : public boost::static_visitor<MicroSurface> {
-		MicroSurfaceVisitor(const Ray &r) :ray(r) {}
-		MicroSurface operator()(const SphereObjectIntersection &intersection) {
-			MicroSurface m;
-			m.p = intersection.intersection.intersect_position(ray);
-			m.n = intersection.intersection.intersect_normal(intersection.o->sphere.center, m.p);
-			m.vn = m.n;
-			m.m = intersection.o->material;
-			m.isback = intersection.intersection.isback;
-			return m;
-		}
-		MicroSurface operator()(const ConelBoxObjectIntersection &intersection) {
-			MicroSurface m;
-			m.p = intersection.intersection.intersect_position(ray);
-			m.n = intersection.intersection.intersect_normal();
-			m.vn = m.n;
-			m.m = LambertMaterial(intersection.intersection.triangle.color);
-			m.isback = intersection.intersection.isback;
-			return m;
-		}
-		MicroSurface operator()(const TriangleMeshObjectIntersection &intersection) {
-			MicroSurface m;
-			m.p = intersection.intersection.intersect_position(intersection.o->transform.to_local_ray(ray));
-			m.n = intersection.intersection.intersect_normal(intersection.o->bvh._triangles[intersection.intersection.triangle_index]);
-			m.vn = m.n;
-			m.m = intersection.o->material;
-			m.isback = intersection.intersection.isback;
-			
-			m.p = intersection.o->transform.from_local_position(m.p);
-			m.n = intersection.o->transform.from_local_normal(m.n);
-			m.vn = intersection.o->transform.from_local_normal(m.vn);
-
-			return m;
-		}
-		Ray ray;
-	};
 
 	struct ImportantArea {
 		ImportantArea() {}
@@ -157,7 +84,7 @@ namespace lc {
 		/* p が重点サンプルの基準点 */
 		template <class E>
 		Sample<Vec3> sample(const Vec3 &p, RandomEngine<E> &engine) const {
-			const double eps = 0.001;
+			const double eps = 0.01;
 			const double pdf_min = 0.05;
 
 			double distance_pq;
@@ -172,7 +99,7 @@ namespace lc {
 			Sample<Vec3> s;
 			s.value = q;
 			double A = 4.0 * glm::pi<double>() * shape.radius * shape.radius;
-			double cos_alpha = glm::abs(glm::dot(qn, (p - q) / distance_pq));
+			double cos_alpha = glm::max(glm::abs(glm::dot(qn, (p - q) / distance_pq)), eps); // あまり小さくなりすぎないように
 			s.pdf = distance_pq * distance_pq / (A * cos_alpha);
 			s.pdf = glm::max(s.pdf, pdf_min);
 			return s;
@@ -191,7 +118,113 @@ namespace lc {
 		return scene.importances[engine() % scene.importances.size()].sample(p, engine);
 	}
 
+	template <int MAX_SIZE>
+	struct LazyMicroSurface {
+		LazyMicroSurface() {}
+		LazyMicroSurface(const LazyMicroSurface &) = delete;
+		void operator=(const LazyMicroSurface &) = delete;
+
+		~LazyMicroSurface() {
+			if (_hasValue) {
+				static_cast<HolderErase *>(_storage.address())->~HolderErase();
+			}
+		}
+
+		struct HolderErase {
+			virtual ~HolderErase() {}
+			virtual MicroSurface evaluate() const = 0;
+		};
+
+		template <class F>
+		struct Holder : public HolderErase {
+			Holder(const F &f) :_f(f) {}
+			MicroSurface evaluate() const {
+				return _f();
+			}
+			F _f;
+		};
+
+		template <class F>
+		void operator=(const F &f) {
+			static_assert(sizeof(F) <= StorageType::size, "low memory");
+			if (_hasValue) {
+				static_cast<HolderErase *>(_storage.address())->~HolderErase();
+			}
+			new (_storage.address()) Holder<F>(f);
+			_hasValue = true;
+		}
+		bool hasValue() const {
+			return _hasValue;
+		}
+		MicroSurface evaluate() const {
+			return static_cast<const HolderErase *>(_storage.address())->evaluate();
+		}
+
+		typedef boost::aligned_storage<MAX_SIZE, 8> StorageType;
+
+		bool _hasValue = false;
+		StorageType _storage;
+	};
+
 	inline boost::optional<MicroSurface> intersect(const Ray &ray, const Scene &scene) {
+		double tmin = std::numeric_limits<double>::max();
+		LazyMicroSurface<256> min_intersection;
+
+		for (int i = 0; i < scene.objects.size(); ++i) {
+			if (auto *s = boost::get<SphereObject>(&scene.objects[i])) {
+				if (auto intersection = intersect(ray, s->sphere)) {
+					if (intersection->tmin < tmin) {
+						min_intersection = [intersection, ray, s]() {
+							MicroSurface m;
+							m.p = intersection->intersect_position(ray);
+							m.n = intersection->intersect_normal(s->sphere.center, m.p);
+							m.vn = m.n;
+							m.m = s->material;
+							m.isback = intersection->isback;
+							return m;
+						};
+						tmin = intersection->tmin;
+					}
+				}
+			} else if (auto *c = boost::get<ConelBoxObject>(&scene.objects[i])) {
+				for (int i = 0; i < c->triangles.size(); ++i) {
+					if (auto intersection = intersect(ray, c->triangles[i].triangle)) {
+						if (intersection->tmin < tmin) {
+							min_intersection = [ray, intersection, i, c]() {
+								MicroSurface m;
+								m.p = intersection->intersect_position(ray);
+								m.n = intersection->intersect_normal(c->triangles[i].triangle);
+								m.vn = m.n;
+								m.m = LambertMaterial(c->triangles[i].color);
+								m.isback = intersection->isback;
+								return m;
+							};
+							tmin = intersection->tmin;
+						}
+					}
+				}
+				//if (auto intersection = intersect(ray, *c)) {
+				//	if (intersection->tmin < tmin) {
+				//		min_intersection = [ray, intersection]() {
+				//			MicroSurface m;
+				//			m.p = intersection->intersect_position(ray);
+				//			m.n = intersection->intersect_normal();
+				//			m.vn = m.n;
+				//			m.m = LambertMaterial(intersection->triangle.color);
+				//			m.isback = intersection->isback;
+				//			return m;
+				//		};
+				//		tmin = intersection->tmin;
+				//	}
+				//}
+			}
+		}
+		if (tmin != std::numeric_limits<double>::max()) {
+			return min_intersection.evaluate();
+		}
+		return boost::none;
+	}
+	/*inline boost::optional<MicroSurface> intersect(const Ray &ray, const Scene &scene) {
 		double tmin = std::numeric_limits<double>::max();
 		ObjectIntersection min_intersection;
 
@@ -208,7 +241,7 @@ namespace lc {
 					}
 				}
 			}
-			if (auto *c = boost::get<ConelBoxObject>(&scene.objects[i])) {
+			else if (auto *c = boost::get<ConelBoxObject>(&scene.objects[i])) {
 				if (auto intersection = intersect(ray, *c)) {
 					if (intersection->tmin < tmin) {
 						ConelBoxObjectIntersection soi;
@@ -220,7 +253,7 @@ namespace lc {
 					}
 				}
 			}
-			if (auto *c = boost::get<TriangleMeshObject>(&scene.objects[i])) {
+			else if (auto *c = boost::get<TriangleMeshObject>(&scene.objects[i])) {
 				if (auto intersection = c->bvh.intersect(c->transform.to_local_ray(ray))) {
 					if (intersection->tmin < tmin) {
 						TriangleMeshObjectIntersection tmoi;
@@ -238,5 +271,5 @@ namespace lc {
 			return min_intersection.apply_visitor(MicroSurfaceVisitor(ray));
 		}
 		return boost::none;
-	}
+	}*/
 }
