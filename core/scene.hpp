@@ -1,8 +1,8 @@
 ﻿#pragma once
 
 #include <boost/variant.hpp>
-#include <boost/function.hpp>
-
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
 
 #include "random_engine.hpp"
 #include "transform.hpp"
@@ -16,12 +16,14 @@ namespace lc {
 
 		Sphere sphere;
 		Material material;
+		boost::uuids::uuid object_id = boost::uuids::random_generator()();
 	};
 
 	struct TriangleMeshObject {
 		BVH bvh;
 		Material material;
 		Transform transform;
+		boost::uuids::uuid object_id = boost::uuids::random_generator()();
 	};
 
 	struct ConelBoxObject {
@@ -68,16 +70,17 @@ namespace lc {
 			Vec3 color;
 		};
 		std::vector<ColorTriangle> triangles;
+		boost::uuids::uuid object_id = boost::uuids::random_generator()();
 	};
 
 	typedef boost::variant<SphereObject, ConelBoxObject, TriangleMeshObject> SceneObject;
 
 	struct ImportantArea {
 		ImportantArea() {}
-		ImportantArea(const Sphere &sphere) :shape(sphere) {}
-		// ImportantArea(const AABB &aabb) :shape(aabb) {}
+		ImportantArea(const Sphere &sphere, const boost::uuids::uuid &uuid) :shape(sphere), object_id(uuid) {}
 
 		Sphere shape;
+		boost::uuids::uuid object_id;
 
 		// boost::variant<Sphere, AABB> shape;
 
@@ -118,13 +121,13 @@ namespace lc {
 		return scene.importances[engine() % scene.importances.size()].sample(p, engine);
 	}
 
-	template <int MAX_SIZE>
-	struct LazyMicroSurface {
-		LazyMicroSurface() {}
-		LazyMicroSurface(const LazyMicroSurface &) = delete;
-		void operator=(const LazyMicroSurface &) = delete;
+	template <class T, int MAX_SIZE>
+	struct LazyValue {
+		LazyValue() {}
+		LazyValue(const LazyValue &) = delete;
+		void operator=(const LazyValue &) = delete;
 
-		~LazyMicroSurface() {
+		~LazyValue() {
 			if (_hasValue) {
 				static_cast<HolderErase *>(_storage.address())->~HolderErase();
 			}
@@ -132,13 +135,13 @@ namespace lc {
 
 		struct HolderErase {
 			virtual ~HolderErase() {}
-			virtual MicroSurface evaluate() const = 0;
+			virtual T evaluate() const = 0;
 		};
 
 		template <class F>
 		struct Holder : public HolderErase {
 			Holder(const F &f) :_f(f) {}
-			MicroSurface evaluate() const {
+			T evaluate() const {
 				return _f();
 			}
 			F _f;
@@ -156,7 +159,7 @@ namespace lc {
 		bool hasValue() const {
 			return _hasValue;
 		}
-		MicroSurface evaluate() const {
+		T evaluate() const {
 			return static_cast<const HolderErase *>(_storage.address())->evaluate();
 		}
 
@@ -166,9 +169,13 @@ namespace lc {
 		StorageType _storage;
 	};
 
-	inline boost::optional<MicroSurface> intersect(const Ray &ray, const Scene &scene) {
+	struct MicroSurfaceIntersection {
+		MicroSurface surface;
+		boost::uuids::uuid object_id;
+	};
+	inline boost::optional<MicroSurfaceIntersection> intersect(const Ray &ray, const Scene &scene) {
 		double tmin = std::numeric_limits<double>::max();
-		LazyMicroSurface<256> min_intersection;
+		LazyValue<MicroSurfaceIntersection, 256> min_intersection;
 
 		for (int i = 0; i < scene.objects.size(); ++i) {
 			if (auto *s = boost::get<SphereObject>(&scene.objects[i])) {
@@ -181,7 +188,11 @@ namespace lc {
 							m.vn = m.n;
 							m.m = s->material;
 							m.isback = intersection->isback;
-							return m;
+
+							MicroSurfaceIntersection msi;
+							msi.surface = m;
+							msi.object_id = s->object_id;
+							return msi;
 						};
 						tmin = intersection->tmin;
 					}
@@ -197,7 +208,11 @@ namespace lc {
 								m.vn = m.n;
 								m.m = LambertMaterial(c->triangles[i].color);
 								m.isback = intersection->isback;
-								return m;
+
+								MicroSurfaceIntersection msi;
+								msi.surface = m;
+								msi.object_id = c->object_id;
+								return msi;
 							};
 							tmin = intersection->tmin;
 						}
