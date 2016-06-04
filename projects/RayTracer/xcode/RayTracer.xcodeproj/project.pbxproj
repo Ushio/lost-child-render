@@ -18,20 +18,20 @@
 		00B9955B1B128DF400A5C623 /* IOSurface.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 00B995591B128DF400A5C623 /* IOSurface.framework */; };
 		5323E6B20EAFCA74003A9687 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5323E6B10EAFCA74003A9687 /* CoreVideo.framework */; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
-		CDB52CF50E1E4F6E9090DA57 /* imgui_demo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 27029B078D6A430A8068AF4B /* imgui_demo.cpp */; };
-		5186958DA3F34562BD066A3E /* imgui_draw.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 239EAA5567244D858C5FE7B7 /* imgui_draw.cpp */; };
-		A3F54D09A1444AFA9750D266 /* imgui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0E5BD82C13204CB5A5F5153C /* imgui.cpp */; };
-		535F3511F2534CC1A4169092 /* CinderImGui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7ACCFEE46C4B438FAE3CAEFB /* CinderImGui.cpp */; };
-		646525725E534A15A1D77489 /* imgui_internal.h in Headers */ = {isa = PBXBuildFile; fileRef = D65990F6C2F945D78439B6E6 /* imgui_internal.h */; };
-		0E3B8D2089714FDCB8D20EBE /* imgui.h in Headers */ = {isa = PBXBuildFile; fileRef = CC76B5F0CD734B10832A5FCF /* imgui.h */; };
-		6EF1C941F77E4FBD9725C5F3 /* imconfig.h in Headers */ = {isa = PBXBuildFile; fileRef = 90ACE07D7E274E3E87DE8DD1 /* imconfig.h */; };
-		76EA4EC930A34F21A3EFDB45 /* imgui_user.inl in Headers */ = {isa = PBXBuildFile; fileRef = 9DEAB54731F3455997C92803 /* imgui_user.inl */; };
-		B89C2E957E3F4377A7BF545E /* imgui_user.h in Headers */ = {isa = PBXBuildFile; fileRef = 018F98093C1F4269B10F61F9 /* imgui_user.h */; };
-		B7AA320B86B34BFCB1A2E1C8 /* CinderImGui.h in Headers */ = {isa = PBXBuildFile; fileRef = 81054BDC37AD45BBA151A828 /* CinderImGui.h */; };
-		8007AAEF77E446F68244D461 /* RayTracer_Prefix.pch in Headers */ = {isa = PBXBuildFile; fileRef = 4975A88632784879AF003B17 /* RayTracer_Prefix.pch */; };
-		73B3112AB509459292D5DBB5 /* CinderApp.icns in Resources */ = {isa = PBXBuildFile; fileRef = 115570D8BE4D41C7A69DB93A /* CinderApp.icns */; };
-		7604B3DFF596446B81BCE131 /* Resources.h in Headers */ = {isa = PBXBuildFile; fileRef = E9303B2A13A04CC7A8FA983D /* Resources.h */; };
-		8F1F04530E8944E08231800E /* RayTracerApp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6173E951AC1E428AAB94494F /* RayTracerApp.cpp */; };
+		186EB2A4420A45C6B8252F28 /* imgui_demo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BC572A4DC76D46AEBA1C12AC /* imgui_demo.cpp */; };
+		E5EBE09FE1FF49E1A22BD21D /* imgui_draw.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A25FA9C4D81D4C7DA7BC7245 /* imgui_draw.cpp */; };
+		BF3EA2A766BE4ECCAABD9A31 /* imgui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5E651CBCA2D440EBDED8CFC /* imgui.cpp */; };
+		425C021C27F943878C457CA8 /* CinderImGui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F64F933DA560481BBDE97735 /* CinderImGui.cpp */; };
+		BD7951A5A35840DF8C317E7F /* imgui_internal.h in Headers */ = {isa = PBXBuildFile; fileRef = 858C14FB754042C8B1C2A4D1 /* imgui_internal.h */; };
+		EC70658733FA4C7A9A8E9E15 /* imgui.h in Headers */ = {isa = PBXBuildFile; fileRef = 19F72461BC15437180F82754 /* imgui.h */; };
+		373CA226EE6342ACA73349AB /* imconfig.h in Headers */ = {isa = PBXBuildFile; fileRef = DEB333B725B14F018CADBF59 /* imconfig.h */; };
+		6C76DF8470A14006A78EB373 /* imgui_user.inl in Headers */ = {isa = PBXBuildFile; fileRef = 4B4D6F5E95CF441B8AA59E62 /* imgui_user.inl */; };
+		B46E5371D3354DECBEE39F31 /* imgui_user.h in Headers */ = {isa = PBXBuildFile; fileRef = F74EF784827548A694C883FA /* imgui_user.h */; };
+		658413B9BE5442C682F96440 /* CinderImGui.h in Headers */ = {isa = PBXBuildFile; fileRef = 8F1E5F3D3AF042D899759711 /* CinderImGui.h */; };
+		F4E70249FDCB4891B9A026CB /* RayTracer_Prefix.pch in Headers */ = {isa = PBXBuildFile; fileRef = 71CC2A4D3602489DA661312B /* RayTracer_Prefix.pch */; };
+		B30ACDA2DD4642FFAF372859 /* CinderApp.icns in Resources */ = {isa = PBXBuildFile; fileRef = 39ACECE7C32B436187BA29E8 /* CinderApp.icns */; };
+		92A2EC6B739B460994B032CB /* Resources.h in Headers */ = {isa = PBXBuildFile; fileRef = 4E1A2A62B41F48DA81D31FB0 /* Resources.h */; };
+		4D028E6BA64D432A84870D47 /* RayTracerApp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC699F64CFDB4D58ABBFDB65 /* RayTracerApp.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,21 +49,21 @@
 		29B97325FDCFA39411CA2CEA /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = /System/Library/Frameworks/Foundation.framework; sourceTree = "<absolute>"; };
 		5323E6B10EAFCA74003A9687 /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = /System/Library/Frameworks/CoreVideo.framework; sourceTree = "<absolute>"; };
 		8D1107320486CEB800E47090 /* RayTracer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RayTracer.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		6173E951AC1E428AAB94494F /* RayTracerApp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; path = ../src/RayTracerApp.cpp; sourceTree = "<group>"; name = RayTracerApp.cpp; };
-		E9303B2A13A04CC7A8FA983D /* Resources.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ../include/Resources.h; sourceTree = "<group>"; name = Resources.h; };
-		115570D8BE4D41C7A69DB93A /* CinderApp.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = ../resources/CinderApp.icns; sourceTree = "<group>"; name = CinderApp.icns; };
-		F417A4CCC1684556B1C57457 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; name = Info.plist; };
-		4975A88632784879AF003B17 /* RayTracer_Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = "\"\""; path = RayTracer_Prefix.pch; sourceTree = "<group>"; name = RayTracer_Prefix.pch; };
-		81054BDC37AD45BBA151A828 /* CinderImGui.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/include/CinderImGui.h"; sourceTree = "<group>"; name = CinderImGui.h; };
-		018F98093C1F4269B10F61F9 /* imgui_user.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/include/imgui_user.h"; sourceTree = "<group>"; name = imgui_user.h; };
-		9DEAB54731F3455997C92803 /* imgui_user.inl */ = {isa = PBXFileReference; lastKnownFileType = "\"\""; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/include/imgui_user.inl"; sourceTree = "<group>"; name = imgui_user.inl; };
-		90ACE07D7E274E3E87DE8DD1 /* imconfig.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/lib/imgui/imconfig.h"; sourceTree = "<group>"; name = imconfig.h; };
-		CC76B5F0CD734B10832A5FCF /* imgui.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/lib/imgui/imgui.h"; sourceTree = "<group>"; name = imgui.h; };
-		D65990F6C2F945D78439B6E6 /* imgui_internal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/lib/imgui/imgui_internal.h"; sourceTree = "<group>"; name = imgui_internal.h; };
-		7ACCFEE46C4B438FAE3CAEFB /* CinderImGui.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/src/CinderImGui.cpp"; sourceTree = "<group>"; name = CinderImGui.cpp; };
-		0E5BD82C13204CB5A5F5153C /* imgui.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/lib/imgui/imgui.cpp"; sourceTree = "<group>"; name = imgui.cpp; };
-		239EAA5567244D858C5FE7B7 /* imgui_draw.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/lib/imgui/imgui_draw.cpp"; sourceTree = "<group>"; name = imgui_draw.cpp; };
-		27029B078D6A430A8068AF4B /* imgui_demo.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/lib/imgui/imgui_demo.cpp"; sourceTree = "<group>"; name = imgui_demo.cpp; };
+		AC699F64CFDB4D58ABBFDB65 /* RayTracerApp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; path = ../src/RayTracerApp.cpp; sourceTree = "<group>"; name = RayTracerApp.cpp; };
+		4E1A2A62B41F48DA81D31FB0 /* Resources.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ../include/Resources.h; sourceTree = "<group>"; name = Resources.h; };
+		39ACECE7C32B436187BA29E8 /* CinderApp.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = ../resources/CinderApp.icns; sourceTree = "<group>"; name = CinderApp.icns; };
+		B367F700B5B04DF4BF8FB635 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; name = Info.plist; };
+		71CC2A4D3602489DA661312B /* RayTracer_Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = "\"\""; path = RayTracer_Prefix.pch; sourceTree = "<group>"; name = RayTracer_Prefix.pch; };
+		8F1E5F3D3AF042D899759711 /* CinderImGui.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/include/CinderImGui.h"; sourceTree = "<group>"; name = CinderImGui.h; };
+		F74EF784827548A694C883FA /* imgui_user.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/include/imgui_user.h"; sourceTree = "<group>"; name = imgui_user.h; };
+		4B4D6F5E95CF441B8AA59E62 /* imgui_user.inl */ = {isa = PBXFileReference; lastKnownFileType = "\"\""; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/include/imgui_user.inl"; sourceTree = "<group>"; name = imgui_user.inl; };
+		DEB333B725B14F018CADBF59 /* imconfig.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/lib/imgui/imconfig.h"; sourceTree = "<group>"; name = imconfig.h; };
+		19F72461BC15437180F82754 /* imgui.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/lib/imgui/imgui.h"; sourceTree = "<group>"; name = imgui.h; };
+		858C14FB754042C8B1C2A4D1 /* imgui_internal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/lib/imgui/imgui_internal.h"; sourceTree = "<group>"; name = imgui_internal.h; };
+		F64F933DA560481BBDE97735 /* CinderImGui.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/src/CinderImGui.cpp"; sourceTree = "<group>"; name = CinderImGui.cpp; };
+		F5E651CBCA2D440EBDED8CFC /* imgui.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/lib/imgui/imgui.cpp"; sourceTree = "<group>"; name = imgui.cpp; };
+		A25FA9C4D81D4C7DA7BC7245 /* imgui_draw.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/lib/imgui/imgui_draw.cpp"; sourceTree = "<group>"; name = imgui_draw.cpp; };
+		BC572A4DC76D46AEBA1C12AC /* imgui_demo.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; path = "../../../../cinder_0.9.0_vc2013/blocks/Cinder-ImGui/lib/imgui/imgui_demo.cpp"; sourceTree = "<group>"; name = imgui_demo.cpp; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -91,7 +91,7 @@
 		080E96DDFE201D6D7F000001 /* Source */ = {
 			isa = PBXGroup;
 			children = (
-				6173E951AC1E428AAB94494F /* RayTracerApp.cpp */,
+				AC699F64CFDB4D58ABBFDB65 /* RayTracerApp.cpp */,
 			);
 			name = Source;
 			sourceTree = "<group>";
@@ -144,51 +144,51 @@
 			name = RayTracer;
 			sourceTree = "<group>";
 		};
-		AAAC1867BBE6473288B7DA6C /* include */ = {
+		7F8E5E003485499CAD0F4EA5 /* include */ = {
 			isa = PBXGroup;
 			children = (
-				81054BDC37AD45BBA151A828 /* CinderImGui.h */,
-				018F98093C1F4269B10F61F9 /* imgui_user.h */,
-				9DEAB54731F3455997C92803 /* imgui_user.inl */,
+				8F1E5F3D3AF042D899759711 /* CinderImGui.h */,
+				F74EF784827548A694C883FA /* imgui_user.h */,
+				4B4D6F5E95CF441B8AA59E62 /* imgui_user.inl */,
 			);
 			name = include;
 			sourceTree = "<group>";
 		};
-		8FC502AC17A14E4BB00A2B46 /* imgui */ = {
+		76091324D82F4C008C4F8433 /* imgui */ = {
 			isa = PBXGroup;
 			children = (
-				90ACE07D7E274E3E87DE8DD1 /* imconfig.h */,
-				CC76B5F0CD734B10832A5FCF /* imgui.h */,
-				D65990F6C2F945D78439B6E6 /* imgui_internal.h */,
-				0E5BD82C13204CB5A5F5153C /* imgui.cpp */,
-				239EAA5567244D858C5FE7B7 /* imgui_draw.cpp */,
-				27029B078D6A430A8068AF4B /* imgui_demo.cpp */,
+				DEB333B725B14F018CADBF59 /* imconfig.h */,
+				19F72461BC15437180F82754 /* imgui.h */,
+				858C14FB754042C8B1C2A4D1 /* imgui_internal.h */,
+				F5E651CBCA2D440EBDED8CFC /* imgui.cpp */,
+				A25FA9C4D81D4C7DA7BC7245 /* imgui_draw.cpp */,
+				BC572A4DC76D46AEBA1C12AC /* imgui_demo.cpp */,
 			);
 			name = imgui;
 			sourceTree = "<group>";
 		};
-		E5A01134B82E4AC49947DB35 /* lib */ = {
+		4B18D5AAD4A94D9E82E076F3 /* lib */ = {
 			isa = PBXGroup;
 			children = (
-				8FC502AC17A14E4BB00A2B46 /* imgui */,
+				76091324D82F4C008C4F8433 /* imgui */,
 			);
 			name = lib;
 			sourceTree = "<group>";
 		};
-		80377345C5CA47E1BD75C818 /* src */ = {
+		2AE95DE6420D49469A083327 /* src */ = {
 			isa = PBXGroup;
 			children = (
-				7ACCFEE46C4B438FAE3CAEFB /* CinderImGui.cpp */,
+				F64F933DA560481BBDE97735 /* CinderImGui.cpp */,
 			);
 			name = src;
 			sourceTree = "<group>";
 		};
-		DE21EE2EA04D4DF887493F0B /* ImGui */ = {
+		A96A56B629234B10AAA93353 /* ImGui */ = {
 			isa = PBXGroup;
 			children = (
-				AAAC1867BBE6473288B7DA6C /* include */,
-				E5A01134B82E4AC49947DB35 /* lib */,
-				80377345C5CA47E1BD75C818 /* src */,
+				7F8E5E003485499CAD0F4EA5 /* include */,
+				4B18D5AAD4A94D9E82E076F3 /* lib */,
+				2AE95DE6420D49469A083327 /* src */,
 			);
 			name = ImGui;
 			sourceTree = "<group>";
@@ -196,7 +196,7 @@
 		01B97315FEAEA392516A2CEA /* Blocks */ = {
 			isa = PBXGroup;
 			children = (
-				DE21EE2EA04D4DF887493F0B /* ImGui */,
+				A96A56B629234B10AAA93353 /* ImGui */,
 			);
 			name = Blocks;
 			sourceTree = "<group>";
@@ -204,8 +204,8 @@
 		29B97315FDCFA39411CA2CEA /* Headers */ = {
 			isa = PBXGroup;
 			children = (
-				E9303B2A13A04CC7A8FA983D /* Resources.h */,
-				4975A88632784879AF003B17 /* RayTracer_Prefix.pch */,
+				4E1A2A62B41F48DA81D31FB0 /* Resources.h */,
+				71CC2A4D3602489DA661312B /* RayTracer_Prefix.pch */,
 			);
 			name = Headers;
 			sourceTree = "<group>";
@@ -213,8 +213,8 @@
 		29B97317FDCFA39411CA2CEA /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				115570D8BE4D41C7A69DB93A /* CinderApp.icns */,
-				F417A4CCC1684556B1C57457 /* Info.plist */,
+				39ACECE7C32B436187BA29E8 /* CinderApp.icns */,
+				B367F700B5B04DF4BF8FB635 /* Info.plist */,
 			);
 			name = Resources;
 			sourceTree = "<group>";
@@ -278,7 +278,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				73B3112AB509459292D5DBB5 /* CinderApp.icns in Resources */,
+				B30ACDA2DD4642FFAF372859 /* CinderApp.icns in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -289,11 +289,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8F1F04530E8944E08231800E /* RayTracerApp.cpp in Sources */,
-				535F3511F2534CC1A4169092 /* CinderImGui.cpp in Sources */,
-				A3F54D09A1444AFA9750D266 /* imgui.cpp in Sources */,
-				5186958DA3F34562BD066A3E /* imgui_draw.cpp in Sources */,
-				CDB52CF50E1E4F6E9090DA57 /* imgui_demo.cpp in Sources */,
+				4D028E6BA64D432A84870D47 /* RayTracerApp.cpp in Sources */,
+				425C021C27F943878C457CA8 /* CinderImGui.cpp in Sources */,
+				BF3EA2A766BE4ECCAABD9A31 /* imgui.cpp in Sources */,
+				E5EBE09FE1FF49E1A22BD21D /* imgui_draw.cpp in Sources */,
+				186EB2A4420A45C6B8252F28 /* imgui_demo.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

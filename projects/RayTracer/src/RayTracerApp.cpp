@@ -66,7 +66,7 @@ namespace lc {
 
 	static const int kMaxDepth = 100;
 	static const int kMinDepth = 3;
-	static const double kReflectionBias = 0.0001;
+	static const Vec3 kReflectionBias(0.000001);
 
 	inline Vec3 radiance(const Ray &ray, const Scene &scene, EngineType &engine, const Vec3 &importance, int depth, bool direct_sample = false) {
 		auto intersection = intersect(ray, scene);
@@ -121,9 +121,24 @@ namespace lc {
 			return Vec3();
 		}
 
+		//using namespace mch;
+		//using mch::C;
+		//var<LambertMaterial> lambert;
+		//var<RefractionMaterial> refrac;
+		//var<PerfectSpecularMaterial> specular;
+
+		//Material ms = surface.m;
+		//Match(ms)
+		//{
+		//	Case(C<LambertMaterial>(lambert)) cout << "double " << d << endl; break;
+		//	Case(C<RefractionMaterial>(refrac)) cout << "float  " << f << endl; break;
+		//	Case(C<PerfectSpecularMaterial>(specular)) cout << "int    " << n << endl; break;
+		//}
+		//EndMatch
+
 		Vec3 omega_o = -ray.d;
 		if (auto lambert = boost::get<LambertMaterial>(&surface.m)) {
-			bool is_next_direct = 0.25 * glm::pow(0.75, depth) < generate_continuous(engine);
+			bool is_next_direct = 0.25 * glm::pow(0.5, depth) < generate_continuous(engine);
 			HemisphereTransform hemisphereTransform(surface.n);
 
 			double pdf = 0.0;
@@ -138,7 +153,7 @@ namespace lc {
 				pdf = sample_imp.pdf;
 
 				if (0.0001 < glm::dot(omega_i, surface.n)) {
-					Ray next_ray(surface.p + omega_i * kReflectionBias, omega_i);
+					Ray next_ray(glm::fma(omega_i, kReflectionBias, surface.p ), omega_i);
 					L = radiance(next_ray, scene, engine, importance, depth + 1, true) / trace_p;
 					if (glm::any(glm::greaterThan(L, Vec3(0.0)))) {
 						succeeded_direct_sample = true;
@@ -148,11 +163,15 @@ namespace lc {
 
 			// ダイレクトサンプリングがなされなかったとき
 			if (succeeded_direct_sample == false) {
-				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
-				omega_i = hemisphereTransform.transform(cos_sample.value);
-				pdf = cos_sample.pdf;
+				//Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
+				//omega_i = hemisphereTransform.transform(cos_sample.value);
+				//pdf = cos_sample.pdf;
 
-				Ray next_ray(surface.p + omega_i * kReflectionBias, omega_i);
+				// こっちのほうが効率の良い探索ができるせいか、ノイズが少ない
+				omega_i = hemisphereTransform.transform(generate_on_hemisphere(engine));
+				pdf = 1.0/ 4.0 * glm::pi<double>();
+
+				Ray next_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
 				L = radiance(next_ray, scene, engine, lambert->albedo * importance, depth + 1) / trace_p;
 			}
 
@@ -173,7 +192,7 @@ namespace lc {
 				auto omega_i_refract = refraction(-omega_o, surface.n, eta);
 
 				Ray refract_ray;
-				refract_ray.o = surface.p + omega_i_refract * kReflectionBias;
+				refract_ray.o = glm::fma(omega_i_refract, kReflectionBias, surface.p);
 				refract_ray.d = omega_i_refract;
 				return radiance(refract_ray, scene, engine, importance, depth + 1) / trace_p;
 			}
@@ -181,7 +200,7 @@ namespace lc {
 				auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
 
 				Ray reflect_ray;
-				reflect_ray.o = surface.p + omega_i_reflect * kReflectionBias;
+				reflect_ray.o = glm::fma(omega_i_reflect, kReflectionBias, surface.p);
 				reflect_ray.d = omega_i_reflect;
 				return radiance(reflect_ray, scene, engine, importance, depth + 1) / trace_p;
 			}
@@ -189,7 +208,7 @@ namespace lc {
 		if (auto specular = boost::get<PerfectSpecularMaterial>(&surface.m)) {
 			auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
 			Ray reflect_ray;
-			reflect_ray.o = surface.p + omega_i_reflect * kReflectionBias;
+			reflect_ray.o = glm::fma(omega_i_reflect, kReflectionBias, surface.p);
 			reflect_ray.d = omega_i_reflect;
 			return radiance(reflect_ray, scene, engine, importance, depth + 1) / trace_p;
 		}
@@ -431,7 +450,7 @@ void RayTracerApp::setup()
 	_scene.objects.push_back(light);
 
 	// _scene.importances.push_back(lc::ImportantArea(spec.sphere));
-	// _scene.importances.push_back(lc::ImportantArea(grass.sphere));
+	// _scene.importances.push_back(lc::ImportantArea(grass.sphere, grass.object_id));
 	_scene.importances.push_back(lc::ImportantArea(light.sphere, light.object_id));
 }
 

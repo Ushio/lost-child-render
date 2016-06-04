@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
+#include <glm/gtx/simd_vec4.hpp>
 
 namespace lc {
 	typedef glm::dvec4 Vec4;

@@ -105,6 +105,16 @@ namespace lc {
 			z);
 	}
 	template <class E>
+	Vec3 generate_on_hemisphere(RandomEngine<E> &engine) {
+		double z = generate_continuous(engine) * 2.0 - 1.0;
+		double phi = generate_continuous(engine) * glm::pi<double>();
+		double v = glm::sqrt(1.0 - z * z);
+		return Vec3(
+			v * glm::cos(phi),
+			v * glm::sin(phi),
+			z);
+	}
+	template <class E>
 	Sample<Vec3> generate_cosine_weight_hemisphere(RandomEngine<E> &engine) {
 		double eps = 0.0001;
 

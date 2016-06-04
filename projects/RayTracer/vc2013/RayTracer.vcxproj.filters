@@ -13,22 +13,22 @@
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav</Extensions>
     </Filter>
     <Filter Include="Blocks">
-      <UniqueIdentifier>{F7C71217-B664-4E7D-819C-A3AF3CE23749}</UniqueIdentifier>
+      <UniqueIdentifier>{7C79167A-064D-4C22-98B5-E4413DB6245D}</UniqueIdentifier>
     </Filter>
     <Filter Include="Blocks\ImGui">
-      <UniqueIdentifier>{D219CB70-AD32-4C80-8DF1-BEADFAEC3D05}</UniqueIdentifier>
+      <UniqueIdentifier>{BC3C3890-A603-4A58-A601-A0C3741D3C87}</UniqueIdentifier>
     </Filter>
     <Filter Include="Blocks\ImGui\include">
-      <UniqueIdentifier>{BEB68B9F-9911-452D-9485-40975BF85D82}</UniqueIdentifier>
+      <UniqueIdentifier>{69449D5B-DF50-4AA0-A655-407A5DCD10E8}</UniqueIdentifier>
     </Filter>
     <Filter Include="Blocks\ImGui\lib">
-      <UniqueIdentifier>{2EEC5A93-1A07-41C8-9139-5462D6DA1C9D}</UniqueIdentifier>
+      <UniqueIdentifier>{610E7F90-82C3-43EE-8C3E-74AA98536252}</UniqueIdentifier>
     </Filter>
     <Filter Include="Blocks\ImGui\lib\imgui">
-      <UniqueIdentifier>{7F448513-7362-43FE-89E2-7C82385ADB40}</UniqueIdentifier>
+      <UniqueIdentifier>{91BF4DDA-25EC-40A0-8115-34EF2A7F2640}</UniqueIdentifier>
     </Filter>
     <Filter Include="Blocks\ImGui\src">
-      <UniqueIdentifier>{6DDEB64E-88C3-48C9-9EC9-27722D1DF59B}</UniqueIdentifier>
+      <UniqueIdentifier>{33238BB3-410E-40A9-9EBC-16016D37D9A2}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

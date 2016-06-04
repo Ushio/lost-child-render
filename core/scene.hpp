@@ -81,6 +81,7 @@ namespace lc {
 
 		Sphere shape;
 		boost::uuids::uuid object_id;
+		// double importance = 1.0;
 
 		// boost::variant<Sphere, AABB> shape;
 
@@ -88,7 +89,7 @@ namespace lc {
 		template <class E>
 		Sample<Vec3> sample(const Vec3 &p, RandomEngine<E> &engine) const {
 			const double eps = 0.01;
-			const double pdf_min = 0.05;
+			const double pdf_min = 0.01;
 
 			double distance_pq;
 			Vec3 q;
