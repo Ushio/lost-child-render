@@ -114,12 +114,44 @@ namespace lc {
 		Transform viewTransform;
 		Camera camera;
 		std::vector<SceneObject> objects;
+
+		// 直接サンプリング
+		std::vector<ImportantArea> lights;
 		std::vector<ImportantArea> importances;
 	};
 
 	template <class E>
-	Sample<Vec3> sample_important_position(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine) {
-		return scene.importances[engine() % scene.importances.size()].sample(p, engine);
+	boost::optional<Sample<Vec3>> sample_important_position(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine, int depth) {
+		if (scene.lights.empty() && scene.importances.empty()) {
+			return boost::none;
+		}
+
+		// モジュロバイアスはNが十分に小さいので無視する
+		if (scene.importances.empty() && scene.lights.empty() == false) {
+			return scene.lights.size() == 1 ?
+				scene.lights[0].sample(p, engine)
+				:
+				scene.lights[engine() % scene.lights.size()].sample(p, engine);
+		}
+		if (scene.importances.empty() == false && scene.lights.empty()) {
+			return scene.importances.size() == 1 ?
+				scene.importances[0].sample(p, engine)
+				:
+				scene.importances[engine() % scene.importances.size()].sample(p, engine);
+		}
+
+		// 探索が深ければ、ライトサンプリングの確率は上げたほうがいい
+		bool is_light_sampleing = 0.25 * glm::pow(0.25, depth) < generate_continuous(engine);
+		if (is_light_sampleing) {
+			return scene.lights.size() == 1 ?
+				scene.lights[0].sample(p, engine)
+				:
+				scene.lights[engine() % scene.lights.size()].sample(p, engine);
+		}
+		return scene.importances.size() == 1 ?
+			scene.importances[0].sample(p, engine)
+			:
+			scene.importances[engine() % scene.importances.size()].sample(p, engine);
 	}
 
 	template <class T, int MAX_SIZE>

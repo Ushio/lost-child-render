@@ -26,7 +26,7 @@
 #include <stack>
 #include <chrono>
 #include <boost/range.hpp>
-#include <boost/range/numeric.hpp>
+#include <boost/range/join.hpp>
 #include <boost/format.hpp>
 #include <boost/variant.hpp>
 
@@ -78,10 +78,14 @@ namespace lc {
 		// 目的のオブジェクトにたどり着けなかったら早々にあきらめる
 		if (direct_sample) {
 			auto intersected_id = intersection->object_id;
-			bool failed_to_sample = std::all_of(scene.importances.begin(), scene.importances.end(), [intersected_id](const ImportantArea &area) {
-				return area.object_id != intersected_id;
-			});
-			if (failed_to_sample) {
+			bool succeeded_sample = false;
+			for (const ImportantArea &area : boost::join(scene.lights, scene.importances)) {
+				if (area.object_id == intersected_id) {
+					succeeded_sample = true;
+					break;
+				}
+			}
+			if (succeeded_sample == false) {
 				return Vec3(0.0);
 			}
 		}
@@ -148,28 +152,30 @@ namespace lc {
 
 			// ダイレクトサンプリング
 			if (is_next_direct) {
-				Sample<Vec3> sample_imp = sample_important_position(scene, surface.p, engine);
-				omega_i = glm::normalize(sample_imp.value - surface.p);
-				pdf = sample_imp.pdf;
+				if (boost::optional<Sample<Vec3>> sample_imp = sample_important_position(scene, surface.p, engine, depth)) {
+					omega_i = glm::normalize(sample_imp->value - surface.p);
+					pdf = sample_imp->pdf;
 
-				if (0.0001 < glm::dot(omega_i, surface.n)) {
-					Ray next_ray(glm::fma(omega_i, kReflectionBias, surface.p ), omega_i);
-					L = radiance(next_ray, scene, engine, importance, depth + 1, true) / trace_p;
-					if (glm::any(glm::greaterThan(L, Vec3(0.0)))) {
-						succeeded_direct_sample = true;
+					if (0.0001 < glm::dot(omega_i, surface.n)) {
+						Ray next_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
+						L = radiance(next_ray, scene, engine, importance, depth + 1, true) / trace_p;
+						if (glm::any(glm::greaterThan(L, Vec3(0.0)))) {
+							succeeded_direct_sample = true;
+						}
 					}
 				}
 			}
 
 			// ダイレクトサンプリングがなされなかったとき
 			if (succeeded_direct_sample == false) {
-				//Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
-				//omega_i = hemisphereTransform.transform(cos_sample.value);
-				//pdf = cos_sample.pdf;
+				// コサイン重点サンプリング
+				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
+				omega_i = hemisphereTransform.transform(cos_sample.value);
+				pdf = cos_sample.pdf;
 
-				// こっちのほうが効率の良い探索ができるせいか、ノイズが少ない
-				omega_i = hemisphereTransform.transform(generate_on_hemisphere(engine));
-				pdf = 1.0/ 4.0 * glm::pi<double>();
+				// 一様サンプリング
+				// omega_i = hemisphereTransform.transform(generate_on_hemisphere(engine));
+				// pdf = glm::one_over_two_pi<double>();
 
 				Ray next_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
 				L = radiance(next_ray, scene, engine, lambert->albedo * importance, depth + 1) / trace_p;
@@ -243,7 +249,7 @@ namespace lc {
 				color *= aa_sample_inverse;
 
 				// TODO 対症療法すぎるだろうか
-				if (glm::all(glm::lessThan(color, Vec3(100.0)))) {
+				if (glm::all(glm::lessThan(color, Vec3(200.0)))) {
 					pixel.color += color;
 				}
 			}
@@ -450,8 +456,9 @@ void RayTracerApp::setup()
 	_scene.objects.push_back(light);
 
 	// _scene.importances.push_back(lc::ImportantArea(spec.sphere));
-	// _scene.importances.push_back(lc::ImportantArea(grass.sphere, grass.object_id));
-	_scene.importances.push_back(lc::ImportantArea(light.sphere, light.object_id));
+	// 
+	_scene.lights.push_back(lc::ImportantArea(light.sphere, light.object_id));
+//	_scene.importances.push_back(lc::ImportantArea(grass.sphere, grass.object_id));
 }
 
 void RayTracerApp::mouseDown(MouseEvent event)
