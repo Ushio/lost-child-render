@@ -194,14 +194,7 @@ namespace lc {
 
 		Vec3 omega_o = -ray.d;
 		if (auto lambert = boost::get<LambertMaterial>(&surface.m)) {
-			if (_use_irradian_cache) {
-				if (hit_diffuse) {
-					if (auto E = _irradian_cache.irradiance(surface.p, surface.n, _irradian_radius * 5.0)) {
-						double brdf = glm::one_over_pi<double>();
-						return lambert->albedo * brdf * (*E) * glm::one_over_pi<double>();
-					}
-				}
-			}
+
 
 			bool is_next_direct = 0.5 * glm::pow(0.5, depth) < generate_continuous(engine);
 			HemisphereTransform hemisphereTransform(surface.n);
@@ -229,6 +222,16 @@ namespace lc {
 
 			// ダイレクトサンプリングがなされなかったとき
 			if (succeeded_direct_sample == false) {
+				if (_use_irradian_cache) {
+					if (hit_diffuse) {
+
+					}
+					if (auto E = _irradian_cache.irradiance(surface.p, surface.n, _irradian_radius * 5.0)) {
+						double brdf = glm::one_over_pi<double>();
+						return lambert->albedo * brdf * (*E) * glm::one_over_pi<double>();
+					}
+				}
+
 				// コサイン重点サンプリング
 				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
 				omega_i = hemisphereTransform.transform(cos_sample.value);
