@@ -29,8 +29,75 @@
 #include <boost/range/join.hpp>
 #include <boost/format.hpp>
 #include <boost/variant.hpp>
+#include <kdtree.h>
+
 
 static const int wide = 256;
+
+namespace lc {
+	struct IrradianceCache {
+		struct Irradiance {
+			Vec3 e;
+			Vec3 p;
+			Vec3 n;
+		};
+		static void deleter(void *ptr) {
+			delete (Irradiance *)ptr;
+		}
+		IrradianceCache() {
+			_kd = kd_create(3);
+			kd_data_destructor(_kd, deleter);
+		}
+
+		void add(const Vec3 &e, const Vec3 &p, const Vec3 &n) {
+			Irradiance *irr = new Irradiance();
+			irr->e = e;
+			irr->p = p;
+			irr->n = n;
+			kd_insert3(_kd, p.x, p.y, p.z, irr);
+			_irradiances.push_back(irr);
+		}
+
+		boost::optional<Vec3> irradiance(const const Vec3 &p, const Vec3 &n, double radius) const {
+			kdres *presults = kd_nearest_range3(_kd, p.x, p.y, p.z, radius);
+
+			Vec3 e;
+			double weight_all = 0.0;
+			while (!kd_res_end(presults)) {
+				/* get the data and position of the current result item */
+				lc::Vec3 cache_p;
+				lc::IrradianceCache::Irradiance *irr = (lc::IrradianceCache::Irradiance *)kd_res_item(presults, glm::value_ptr(cache_p));
+
+				double NoIN = glm::dot(n, irr->n);
+				if (NoIN < 0.0001) {
+					kd_res_next(presults);
+					continue;
+				}
+				double eps = glm::distance(p, cache_p) / radius + glm::sqrt(1.0 - NoIN);
+				double w = 1.0 / glm::max(eps, 0.00001);
+				e += irr->e * w;
+				weight_all += w;
+				kd_res_next(presults);
+			}
+			kd_res_free(presults);
+			presults = nullptr;
+
+			if (weight_all <= 0.00001) {
+				return boost::none;
+			}
+
+			e /= weight_all;
+			return e;
+		}
+
+		std::vector<Irradiance *> _irradiances;
+		kdtree *_kd = nullptr;
+	};
+}
+
+static lc::IrradianceCache _irradian_cache;
+static double _irradian_radius = 0.5;
+static bool _use_irradian_cache = false;
 
 namespace lc {
 	// typedef MersenneTwister EngineType;
@@ -68,7 +135,7 @@ namespace lc {
 	static const int kMinDepth = 3;
 	static const Vec3 kReflectionBias(0.000001);
 
-	inline Vec3 radiance(const Ray &ray, const Scene &scene, EngineType &engine, const Vec3 &importance, int depth, bool direct_sample = false) {
+	inline Vec3 radiance(const Ray &ray, const Scene &scene, EngineType &engine, const Vec3 &importance, int depth, bool direct_sample = false, bool cache_mode = false, bool hit_diffuse = false) {
 		auto intersection = intersect(ray, scene);
 		if (!intersection) {
 			return Vec3(0.0);
@@ -127,7 +194,16 @@ namespace lc {
 
 		Vec3 omega_o = -ray.d;
 		if (auto lambert = boost::get<LambertMaterial>(&surface.m)) {
-			bool is_next_direct = 0.25 * glm::pow(0.5, depth) < generate_continuous(engine);
+			if (_use_irradian_cache) {
+				if (hit_diffuse) {
+					if (auto E = _irradian_cache.irradiance(surface.p, surface.n, _irradian_radius * 5.0)) {
+						double brdf = glm::one_over_pi<double>();
+						return lambert->albedo * brdf * (*E) * glm::one_over_pi<double>();
+					}
+				}
+			}
+
+			bool is_next_direct = 0.5 * glm::pow(0.5, depth) < generate_continuous(engine);
 			HemisphereTransform hemisphereTransform(surface.n);
 
 			double pdf = 0.0;
@@ -143,7 +219,7 @@ namespace lc {
 
 					if (0.0001 < glm::dot(omega_i, surface.n)) {
 						Ray next_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
-						L = radiance(next_ray, scene, engine, importance, depth + 1, true) / trace_p;
+						L = radiance(next_ray, scene, engine, importance, depth + 1, true, cache_mode, true) / trace_p;
 						if (glm::any(glm::greaterThan(L, Vec3(0.0)))) {
 							succeeded_direct_sample = true;
 						}
@@ -163,7 +239,41 @@ namespace lc {
 				// pdf = glm::one_over_two_pi<double>();
 
 				Ray next_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
-				L = radiance(next_ray, scene, engine, lambert->albedo * importance, depth + 1) / trace_p;
+				L = radiance(next_ray, scene, engine, lambert->albedo * importance, depth + 1, false, cache_mode, true) / trace_p;
+
+				// 間接光が必要な場合
+				if (cache_mode) {
+					if (auto E = _irradian_cache.irradiance(surface.p, surface.n, _irradian_radius)) {
+						// NOP
+					}
+					else {
+						// キャッシュが存在しない
+						HemisphereTransform hemisphereTransform(surface.n);
+						Vec3 irradiance;
+
+						int N = 100;
+						std::vector<Vec3> irradiances(N);
+						concurrency::parallel_for<int>(0, N, [&scene, &engine, &hemisphereTransform, &surface, &irradiances](int i) {
+							// コサイン重点サンプリング
+							Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
+							Vec3 omega_i = hemisphereTransform.transform(cos_sample.value);
+							double pdf = cos_sample.pdf;
+
+							// 一様サンプリング
+							// omega_i = hemisphereTransform.transform(generate_on_hemisphere(engine));
+							// pdf = glm::one_over_two_pi<double>();
+							double cos_term = glm::dot(surface.n, omega_i);
+							Ray next_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
+							irradiances[i] = cos_term * radiance(next_ray, scene, engine, Vec3(1.0), 0, false) / pdf;
+						});
+						for (auto i : irradiances) {
+							irradiance += i;
+						}
+						irradiance /= N;
+						irradiance *= glm::two_pi<double>();
+						_irradian_cache.add(irradiance, surface.p, surface.n);
+					}
+				}
 			}
 
 			double brdf = glm::one_over_pi<double>();
@@ -184,7 +294,7 @@ namespace lc {
 				Ray refract_ray;
 				refract_ray.o = glm::fma(omega_i_refract, kReflectionBias, surface.p);
 				refract_ray.d = omega_i_refract;
-				return radiance(refract_ray, scene, engine, importance, depth + 1) / trace_p;
+				return radiance(refract_ray, scene, engine, importance, depth + 1, false, cache_mode, hit_diffuse) / trace_p;
 			}
 			else {
 				auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
@@ -192,20 +302,45 @@ namespace lc {
 				Ray reflect_ray;
 				reflect_ray.o = glm::fma(omega_i_reflect, kReflectionBias, surface.p);
 				reflect_ray.d = omega_i_reflect;
-				return radiance(reflect_ray, scene, engine, importance, depth + 1) / trace_p;
+				return radiance(reflect_ray, scene, engine, importance, depth + 1, false, cache_mode, hit_diffuse) / trace_p;
 			}
 		} else if (auto specular = boost::get<PerfectSpecularMaterial>(&surface.m)) {
 			auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
 			Ray reflect_ray;
 			reflect_ray.o = glm::fma(omega_i_reflect, kReflectionBias, surface.p);
 			reflect_ray.d = omega_i_reflect;
-			return radiance(reflect_ray, scene, engine, importance, depth + 1) / trace_p;
+			return radiance(reflect_ray, scene, engine, importance, depth + 1, false, cache_mode, hit_diffuse) / trace_p;
 		} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
 			return emissive->color;
 		}
 		return Vec3(0.1);
 	}
 
+	inline void create_cache(AccumlationBuffer &buffer, const Scene &scene, int aa_sample) {
+		double aa_sample_inverse = 1.0 / aa_sample;
+		for (int y = 0; y < buffer._height; ++y) {
+			for (int x = 0; x < buffer._width; ++x) {
+				int index = y * buffer._width + x;
+				AccumlationBuffer::Pixel &pixel = buffer._data[index];
+
+				Vec3 color;
+				for (int aai = 0; aai < aa_sample; ++aai) {
+					auto aa_offset = Vec2(
+						generate_continuous(pixel.engine) - 0.5,
+						generate_continuous(pixel.engine) - 0.5
+					);
+
+					/* ビュー空間 */
+					auto ray_view = scene.camera.generate_ray(x + aa_offset.x, y + aa_offset.y, buffer._width, buffer._height);
+
+					/* ワールド空間 */
+					auto ray = scene.viewTransform.to_local_ray(ray_view);
+
+					radiance(ray, scene, pixel.engine, Vec3(1.0), 0, false, true);
+				}
+			}
+		}
+	}
 	inline void step(AccumlationBuffer &buffer, const Scene &scene, int aa_sample) {
 		double aa_sample_inverse = 1.0 / aa_sample;
 		concurrency::parallel_for<int>(0, buffer._height, [&buffer, &scene, aa_sample, aa_sample_inverse](int y) {
@@ -441,6 +576,11 @@ void RayTracerApp::setup()
 	// 
 	_scene.lights.push_back(lc::ImportantArea(light.sphere, light.object_id));
 //	_scene.importances.push_back(lc::ImportantArea(grass.sphere, grass.object_id));
+
+	for (int i = 0; i < 30; ++i) {
+		lc::create_cache(*_buffer, _scene, 2);
+	}
+	_use_irradian_cache = true;
 }
 
 void RayTracerApp::mouseDown(MouseEvent event)
@@ -469,6 +609,21 @@ void RayTracerApp::draw()
 
 	if (_render == false) {
 		lc::draw_scene(_scene, wide, wide);
+
+		// キャッシュ可視化
+		//for (lc::IrradianceCache::Irradiance *irr : _irradian_cache._irradiances) {
+		//	cinder::gl::ScopedPolygonMode wire(GL_LINE);
+		//	cinder::gl::ScopedColor c(0.1, 0.8, 0.0);
+		//	cinder::gl::drawSphere(irr->p, 0.1f);
+		//}
+		cinder::gl::ScopedColor c(0.1, 0.8, 0.0);
+		gl::VertBatch vb(GL_POINTS);
+
+		for (lc::IrradianceCache::Irradiance *irr : _irradian_cache._irradiances) {
+			vb.vertex(irr->p);
+		}
+
+		vb.draw();
 	}
 
 	const int aa = 2;

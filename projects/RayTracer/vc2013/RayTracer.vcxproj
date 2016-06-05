@@ -83,7 +83,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\include;..\..\..\..\cinder_0.9.0_vc2013\include;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\lib\imgui;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\include;..\..\..\..\cinder_0.9.0_vc2013\include;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\lib\imgui;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\include;C:\Users\ushio\Documents\Cinder\lost-child-render\dependences\kdtree;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_WIN32_WINNT=0x0601;_WINDOWS;NOMINMAX;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -110,7 +110,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\include;..\..\..\..\cinder_0.9.0_vc2013\include;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\lib\imgui;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\include;..\..\..\..\cinder_0.9.0_vc2013\include;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\lib\imgui;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\include;C:\Users\ushio\Documents\Cinder\lost-child-render\dependences\kdtree;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_WIN32_WINNT=0x0601;_WINDOWS;NOMINMAX;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -134,7 +134,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\include;..\..\..\..\cinder_0.9.0_vc2013\include;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\lib\imgui;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\include;..\..\..\..\cinder_0.9.0_vc2013\include;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\lib\imgui;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\include;C:\Users\ushio\Documents\Cinder\lost-child-render\dependences\kdtree;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_WIN32_WINNT=0x0601;_WINDOWS;NOMINMAX;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader />
@@ -164,7 +164,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\include;..\..\..\..\cinder_0.9.0_vc2013\include;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\lib\imgui;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\include;..\..\..\..\cinder_0.9.0_vc2013\include;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\lib\imgui;..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\include;C:\Users\ushio\Documents\Cinder\lost-child-render\dependences\kdtree;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_WIN32_WINNT=0x0601;_WINDOWS;NOMINMAX;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader />
@@ -197,6 +197,7 @@
   <ItemGroup />
   <ItemGroup />
   <ItemGroup>
+    <ClCompile Include="..\..\..\dependences\kdtree\kdtree.c" />
     <ClCompile Include="..\src\RayTracerApp.cpp" />
     <ClCompile Include="..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\src\CinderImGui.cpp" />
     <ClCompile Include="..\..\..\..\cinder_0.9.0_vc2013\blocks\Cinder-ImGui\lib\imgui\imgui.cpp" />

@@ -73,40 +73,6 @@ namespace lc {
 		std::vector<Irradiance *> _irradiances;
 		kdtree *_kd = nullptr;
 	};
-
-	//struct IrradianceCache {
-	//	struct Irradiance {
-	//		Vec3 e;
-	//		Vec3 p;
-	//		Vec3 n;
-	//	};
-	//	struct Storage {
-	//		inline size_t kdtree_get_point_count() const {
-	//			return points.size(); 
-	//		}
-	//		inline double kdtree_distance(const double *p1, const size_t idx_p2, size_t) const {
-	//			return glm::distance2(Vec3(p1[0], p1[1], p1[2]), points[idx_p2].p);
-	//		}
-	//		inline float kdtree_get_pt(const size_t idx, int dim) const {
-	//			return points[idx].p[dim];
-	//		}
-	//		template <class BBOX>
-	//		bool kdtree_get_bbox(BBOX &bb) const { return false; }
-
-	//		std::vector<Irradiance> points;
-	//	};
-	//	typedef nanoflann::KDTreeSingleIndexAdaptor<
-	//		nanoflann::L2_Simple_Adaptor<double, Storage>,
-	//		Storage,
-	//		3> KdTree;
-
-	//	void insert() {
-	//		_kdtree.
-	//	}
-
-	//	KdTree _kdtree;
-	//	Storage _storage;
-	//};
 }
 
 
