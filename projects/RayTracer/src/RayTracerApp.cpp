@@ -125,21 +125,6 @@ namespace lc {
 			return Vec3();
 		}
 
-		//using namespace mch;
-		//using mch::C;
-		//var<LambertMaterial> lambert;
-		//var<RefractionMaterial> refrac;
-		//var<PerfectSpecularMaterial> specular;
-
-		//Material ms = surface.m;
-		//Match(ms)
-		//{
-		//	Case(C<LambertMaterial>(lambert)) cout << "double " << d << endl; break;
-		//	Case(C<RefractionMaterial>(refrac)) cout << "float  " << f << endl; break;
-		//	Case(C<PerfectSpecularMaterial>(specular)) cout << "int    " << n << endl; break;
-		//}
-		//EndMatch
-
 		Vec3 omega_o = -ray.d;
 		if (auto lambert = boost::get<LambertMaterial>(&surface.m)) {
 			bool is_next_direct = 0.25 * glm::pow(0.5, depth) < generate_continuous(engine);
@@ -184,8 +169,7 @@ namespace lc {
 			double brdf = glm::one_over_pi<double>();
 			double cos_term = glm::dot(surface.n, omega_i);
 			return lambert->albedo * brdf * cos_term * L / pdf;
-		}
-		if (auto refrac = boost::get<RefractionMaterial>(&surface.m)) {
+		} else if (auto refrac = boost::get<RefractionMaterial>(&surface.m)) {
 			double eta = surface.isback ? refrac->ior / 1.0 : 1.0 / refrac->ior;
 			
 			auto fresnel = [](double costheta, double f0) {
@@ -210,15 +194,13 @@ namespace lc {
 				reflect_ray.d = omega_i_reflect;
 				return radiance(reflect_ray, scene, engine, importance, depth + 1) / trace_p;
 			}
-		}
-		if (auto specular = boost::get<PerfectSpecularMaterial>(&surface.m)) {
+		} else if (auto specular = boost::get<PerfectSpecularMaterial>(&surface.m)) {
 			auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
 			Ray reflect_ray;
 			reflect_ray.o = glm::fma(omega_i_reflect, kReflectionBias, surface.p);
 			reflect_ray.d = omega_i_reflect;
 			return radiance(reflect_ray, scene, engine, importance, depth + 1) / trace_p;
-		}
-		if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
+		} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
 			return emissive->color;
 		}
 		return Vec3(0.1);
