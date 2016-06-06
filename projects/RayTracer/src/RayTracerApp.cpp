@@ -228,7 +228,7 @@ namespace lc {
 					}
 					if (auto E = _irradian_cache.irradiance(surface.p, surface.n, _irradian_radius * 5.0)) {
 						double brdf = glm::one_over_pi<double>();
-						return lambert->albedo * brdf * (*E) * glm::one_over_pi<double>();
+						return lambert->albedo * brdf * (*E) * glm::one_over_two_pi<double>();
 					}
 				}
 
@@ -321,28 +321,59 @@ namespace lc {
 
 	inline void create_cache(AccumlationBuffer &buffer, const Scene &scene, int aa_sample) {
 		double aa_sample_inverse = 1.0 / aa_sample;
-		for (int y = 0; y < buffer._height; ++y) {
-			for (int x = 0; x < buffer._width; ++x) {
-				int index = y * buffer._width + x;
-				AccumlationBuffer::Pixel &pixel = buffer._data[index];
+		EngineType e(1);
+		int no_change_count = 0;
+		for (;;) {
+			int x = e() % buffer._width;
+			int y = e() % buffer._height;
+			int index = y * buffer._width + x;
+			AccumlationBuffer::Pixel &pixel = buffer._data[index];
 
-				Vec3 color;
-				for (int aai = 0; aai < aa_sample; ++aai) {
-					auto aa_offset = Vec2(
-						generate_continuous(pixel.engine) - 0.5,
-						generate_continuous(pixel.engine) - 0.5
-					);
+			auto aa_offset = Vec2(
+				generate_continuous(e) - 0.5,
+				generate_continuous(e) - 0.5
+			);
 
-					/* ビュー空間 */
-					auto ray_view = scene.camera.generate_ray(x + aa_offset.x, y + aa_offset.y, buffer._width, buffer._height);
+			/* ビュー空間 */
+			auto ray_view = scene.camera.generate_ray(x + aa_offset.x, y + aa_offset.y, buffer._width, buffer._height);
 
-					/* ワールド空間 */
-					auto ray = scene.viewTransform.to_local_ray(ray_view);
+			/* ワールド空間 */
+			auto ray = scene.viewTransform.to_local_ray(ray_view);
 
-					radiance(ray, scene, pixel.engine, Vec3(1.0), 0, false, true);
-				}
+			auto prev = _irradian_cache._irradiances.size();
+			radiance(ray, scene, pixel.engine, Vec3(1.0), 0, false, true);
+			auto post = _irradian_cache._irradiances.size();
+			if (prev == post) {
+				no_change_count++;
+			}else {
+				no_change_count = 0;
+			}
+			if (1000 < no_change_count) {
+				break;
 			}
 		}
+		//for (int y = 0; y < buffer._height; ++y) {
+		//	for (int x = 0; x < buffer._width; ++x) {
+		//		int index = y * buffer._width + x;
+		//		AccumlationBuffer::Pixel &pixel = buffer._data[index];
+
+		//		Vec3 color;
+		//		for (int aai = 0; aai < aa_sample; ++aai) {
+		//			auto aa_offset = Vec2(
+		//				generate_continuous(pixel.engine) - 0.5,
+		//				generate_continuous(pixel.engine) - 0.5
+		//			);
+
+		//			/* ビュー空間 */
+		//			auto ray_view = scene.camera.generate_ray(x + aa_offset.x, y + aa_offset.y, buffer._width, buffer._height);
+
+		//			/* ワールド空間 */
+		//			auto ray = scene.viewTransform.to_local_ray(ray_view);
+
+		//			radiance(ray, scene, pixel.engine, Vec3(1.0), 0, false, true);
+		//		}
+		//	}
+		//}
 	}
 	inline void step(AccumlationBuffer &buffer, const Scene &scene, int aa_sample) {
 		double aa_sample_inverse = 1.0 / aa_sample;
@@ -580,9 +611,7 @@ void RayTracerApp::setup()
 	_scene.lights.push_back(lc::ImportantArea(light.sphere, light.object_id));
 //	_scene.importances.push_back(lc::ImportantArea(grass.sphere, grass.object_id));
 
-	for (int i = 0; i < 30; ++i) {
-		lc::create_cache(*_buffer, _scene, 2);
-	}
+	lc::create_cache(*_buffer, _scene, 2);
 	_use_irradian_cache = true;
 }
 
