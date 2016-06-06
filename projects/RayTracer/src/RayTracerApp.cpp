@@ -68,7 +68,34 @@ namespace lc {
 	static const int kMinDepth = 3;
 	static const Vec3 kReflectionBias(0.000001);
 
-	inline Vec3 radiance(const Ray &ray, const Scene &scene, EngineType &engine, const Vec3 &importance, int depth, bool direct_sample = false) {
+	struct Context {
+		int depth = 0;
+		bool is_direct_sample = false;
+		double diffusion = 0.0;
+		Vec3 color_weight = Vec3(1.0);
+
+		Context step() const {
+			Context cp = *this;
+			cp.depth += 1;
+			return cp;
+		}
+		Context direct() const {
+			Context cp = *this;
+			cp.is_direct_sample = true;
+			return cp;
+		}
+		Context diffuse(double d) const {
+			Context cp = *this;
+			cp.diffusion += d;
+			return cp;
+		}
+		Context albedo(const Vec3 &albedo) const {
+			Context cp = *this;
+			cp.color_weight *= albedo;
+			return cp;
+		}
+	};
+	inline Vec3 radiance(const Ray &ray, const Scene &scene, EngineType &engine, const Context &context = Context()) {
 		auto intersection = intersect(ray, scene);
 		if (!intersection) {
 			return Vec3(0.0);
@@ -76,7 +103,7 @@ namespace lc {
 
 		// ダイレクトサンプリング時、
 		// 目的のオブジェクトにたどり着けなかったら早々にあきらめる
-		if (direct_sample) {
+		if (context.is_direct_sample) {
 			auto intersected_id = intersection->object_id;
 			bool succeeded_sample = false;
 			for (const ImportantArea &area : boost::join(scene.lights, scene.importances)) {
@@ -93,7 +120,7 @@ namespace lc {
 		auto surface = intersection->surface;
 
 		// バイアスが発生するが堅実
-		if (kMaxDepth < depth) {
+		if (kMaxDepth < context.depth) {
 			return Vec3(0.0);
 		}
 
@@ -101,10 +128,10 @@ namespace lc {
 		// 0.0f => 失敗率100%
 		// 1.0f => 失敗率0%
 		double trace_p;
-		if (depth < kMinDepth) {
+		if (context.depth < kMinDepth) {
 			trace_p = 1.0;
 		}
-		else if (kMaxDepth < depth) {
+		else if (kMaxDepth < context.depth) {
 			return Vec3(0.0);
 		}
 		else {
@@ -113,7 +140,7 @@ namespace lc {
 			}
 			else {
 				// 案外重要かも
-				trace_p = glm::max(glm::max(importance.r, importance.g), importance.b) * 0.9;
+				trace_p = glm::max(glm::max(context.color_weight.r, context.color_weight.g), context.color_weight.b) * glm::pow(0.9, context.diffusion);
 				trace_p = glm::clamp(trace_p, 0.0, 1.0);
 			}
 		}
@@ -127,8 +154,18 @@ namespace lc {
 
 		Vec3 omega_o = -ray.d;
 		if (auto lambert = boost::get<LambertMaterial>(&surface.m)) {
-			bool is_next_direct = 0.25 * glm::pow(0.5, depth) < generate_continuous(engine);
+
+			// value * 0.25 * x = value * 0.5
+			// 0.25 * x = 0.5
+			// x = 0.5 / 0.25
+			// 
+			// double indirect_p = glm::max(0.95 * glm::pow(0.25, context.diffusion), 0.2);
+			double indirect_p = 0.5 * glm::pow(0.5, context.diffusion);
+			bool is_next_direct = indirect_p < generate_continuous(engine);
+			// double sample_pdf = is_next_direct ? (1.0 - indirect_p) / 0.5 : indirect_p / 0.5;
+			// double sample_pdf = 1.0;
 			HemisphereTransform hemisphereTransform(surface.n);
+
 
 			double pdf = 0.0;
 			Vec3 omega_i;
@@ -137,13 +174,14 @@ namespace lc {
 
 			// ダイレクトサンプリング
 			if (is_next_direct) {
-				if (boost::optional<Sample<Vec3>> sample_imp = sample_important_position(scene, surface.p, engine, depth)) {
+				// TODO depthなにに使ってるんだっけ？
+				if (boost::optional<Sample<Vec3>> sample_imp = sample_important_position(scene, surface.p, engine, context.depth)) {
 					omega_i = glm::normalize(sample_imp->value - surface.p);
 					pdf = sample_imp->pdf;
 
 					if (0.0001 < glm::dot(omega_i, surface.n)) {
 						Ray next_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
-						L = radiance(next_ray, scene, engine, importance, depth + 1, true) / trace_p;
+						L = radiance(next_ray, scene, engine, context.step().direct().diffuse(1.0).albedo(lambert->albedo)) / trace_p;
 						if (glm::any(glm::greaterThan(L, Vec3(0.0)))) {
 							succeeded_direct_sample = true;
 						}
@@ -163,7 +201,7 @@ namespace lc {
 				// pdf = glm::one_over_two_pi<double>();
 
 				Ray next_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
-				L = radiance(next_ray, scene, engine, lambert->albedo * importance, depth + 1) / trace_p;
+				L = radiance(next_ray, scene, engine, context.step().diffuse(1.0).albedo(lambert->albedo)) / trace_p;
 			}
 
 			double brdf = glm::one_over_pi<double>();
@@ -184,7 +222,7 @@ namespace lc {
 				Ray refract_ray;
 				refract_ray.o = glm::fma(omega_i_refract, kReflectionBias, surface.p);
 				refract_ray.d = omega_i_refract;
-				return radiance(refract_ray, scene, engine, importance, depth + 1) / trace_p;
+				return radiance(refract_ray, scene, engine, context.step()) / trace_p;
 			}
 			else {
 				auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
@@ -192,14 +230,14 @@ namespace lc {
 				Ray reflect_ray;
 				reflect_ray.o = glm::fma(omega_i_reflect, kReflectionBias, surface.p);
 				reflect_ray.d = omega_i_reflect;
-				return radiance(reflect_ray, scene, engine, importance, depth + 1) / trace_p;
+				return radiance(reflect_ray, scene, engine, context.step()) / trace_p;
 			}
 		} else if (auto specular = boost::get<PerfectSpecularMaterial>(&surface.m)) {
 			auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
 			Ray reflect_ray;
 			reflect_ray.o = glm::fma(omega_i_reflect, kReflectionBias, surface.p);
 			reflect_ray.d = omega_i_reflect;
-			return radiance(reflect_ray, scene, engine, importance, depth + 1) / trace_p;
+			return radiance(reflect_ray, scene, engine, context.step()) / trace_p;
 		} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
 			return emissive->color;
 		}
@@ -226,7 +264,7 @@ namespace lc {
 					/* ワールド空間 */
 					auto ray = scene.viewTransform.to_local_ray(ray_view);
 
-					color += radiance(ray, scene, pixel.engine, Vec3(1.0), 0);
+					color += radiance(ray, scene, pixel.engine);
 				}
 				color *= aa_sample_inverse;
 
@@ -440,7 +478,7 @@ void RayTracerApp::setup()
 	// _scene.importances.push_back(lc::ImportantArea(spec.sphere));
 	// 
 	_scene.lights.push_back(lc::ImportantArea(light.sphere, light.object_id));
-//	_scene.importances.push_back(lc::ImportantArea(grass.sphere, grass.object_id));
+	_scene.importances.push_back(lc::ImportantArea(grass.sphere, grass.object_id));
 }
 
 void RayTracerApp::mouseDown(MouseEvent event)
