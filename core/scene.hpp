@@ -3,6 +3,8 @@
 #include <boost/variant.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
+#include <boost/range.hpp>
+#include <boost/range/join.hpp>
 
 #include "random_engine.hpp"
 #include "transform.hpp"
@@ -121,7 +123,7 @@ namespace lc {
 	};
 
 	template <class E>
-	boost::optional<Sample<Vec3>> sample_important_position(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine, int depth) {
+	boost::optional<Sample<Vec3>> sample_important_position(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine, double diffusion) {
 		if (scene.lights.empty() && scene.importances.empty()) {
 			return boost::none;
 		}
@@ -141,7 +143,7 @@ namespace lc {
 		}
 
 		// 探索が深ければ、ライトサンプリングの確率は上げたほうがいい
-		bool is_light_sampleing = 0.25 * glm::pow(0.25, depth) < generate_continuous(engine);
+		bool is_light_sampleing = 0.25 * glm::pow(0.25, diffusion) < generate_continuous(engine);
 		if (is_light_sampleing) {
 			return scene.lights.size() == 1 ?
 				scene.lights[0].sample(p, engine)
@@ -152,6 +154,17 @@ namespace lc {
 			scene.importances[0].sample(p, engine)
 			:
 			scene.importances[engine() % scene.importances.size()].sample(p, engine);
+	}
+
+	inline bool is_important(const Scene &scene, const boost::uuids::uuid &object_id) {
+		bool important = false;
+		for (const ImportantArea &area : boost::join(scene.lights, scene.importances)) {
+			if (area.object_id == object_id) {
+				important = true;
+				break;
+			}
+		}
+		return important;
 	}
 
 	template <class T, int MAX_SIZE>

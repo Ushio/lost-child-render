@@ -25,8 +25,7 @@
 
 #include <stack>
 #include <chrono>
-#include <boost/range.hpp>
-#include <boost/range/join.hpp>
+
 #include <boost/format.hpp>
 #include <boost/variant.hpp>
 
@@ -74,175 +73,297 @@ namespace lc {
 		double diffusion = 0.0;
 		Vec3 color_weight = Vec3(1.0);
 
-		Context step() const {
-			Context cp = *this;
-			cp.depth += 1;
-			return cp;
+		Context &step() {
+			depth += 1;
+			return *this;
 		}
-		Context direct() const {
-			Context cp = *this;
-			cp.is_direct_sample = true;
-			return cp;
+		Context &direct() {
+			is_direct_sample = true;
+			return *this;
 		}
-		Context diffuse(double d) const {
-			Context cp = *this;
-			cp.diffusion += d;
-			return cp;
+		Context &diffuse(double d) {
+			diffusion += d;
+			return *this;
 		}
-		Context albedo(const Vec3 &albedo) const {
-			Context cp = *this;
-			cp.color_weight *= albedo;
-			return cp;
+		Context &albedo(const Vec3 &albedo) {
+			color_weight *= albedo;
+			return *this;
 		}
 	};
-	inline Vec3 radiance(const Ray &ray, const Scene &scene, EngineType &engine, const Context &context = Context()) {
-		auto intersection = intersect(ray, scene);
-		if (!intersection) {
-			return Vec3(0.0);
-		}
 
-		// ダイレクトサンプリング時、
-		// 目的のオブジェクトにたどり着けなかったら早々にあきらめる
-		if (context.is_direct_sample) {
-			auto intersected_id = intersection->object_id;
-			bool succeeded_sample = false;
-			for (const ImportantArea &area : boost::join(scene.lights, scene.importances)) {
-				if (area.object_id == intersected_id) {
-					succeeded_sample = true;
-					break;
-				}
+	inline Vec3 radiance(const Ray &ray, const Scene &scene, EngineType &engine) {
+		Context context;
+
+		Ray curr_ray = ray;
+		Vec3 coef(1.0);
+
+		bool skip_intersection = false;
+		boost::optional<MicroSurfaceIntersection> intersection;
+		for (;;) {
+			if (skip_intersection) {
+				skip_intersection = false;
+			} else {
+				intersection = intersect(curr_ray, scene);
 			}
-			if (succeeded_sample == false) {
+			if (!intersection) {
 				return Vec3(0.0);
 			}
-		}
 
-		auto surface = intersection->surface;
+			if (kMaxDepth < context.depth) {
+				return Vec3(0.0);
+			}
 
-		// バイアスが発生するが堅実
-		if (kMaxDepth < context.depth) {
-			return Vec3(0.0);
-		}
+			auto surface = intersection->surface;
 
-		// direct
-		// 0.0f => 失敗率100%
-		// 1.0f => 失敗率0%
-		double trace_p;
-		if (context.depth < kMinDepth) {
-			trace_p = 1.0;
-		}
-		else if (kMaxDepth < context.depth) {
-			return Vec3(0.0);
-		}
-		else {
-			if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
+			double trace_p;
+			if (context.depth < kMinDepth) {
 				trace_p = 1.0;
 			}
-			else {
-				// 案外重要かも
-				trace_p = glm::max(glm::max(context.color_weight.r, context.color_weight.g), context.color_weight.b) * glm::pow(0.9, context.diffusion);
-				trace_p = glm::clamp(trace_p, 0.0, 1.0);
+			else if (kMaxDepth < context.depth) {
+				return Vec3(0.0);
 			}
-		}
+			else {
+				if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
+					trace_p = 1.0;
+				}
+				else {
+					// 案外重要かも
+					trace_p = glm::max(glm::max(context.color_weight.r, context.color_weight.g), context.color_weight.b) * glm::pow(0.9, context.diffusion);
+					trace_p = glm::clamp(trace_p, 0.0, 1.0);
+				}
+			}
 
-		trace_p = glm::max(trace_p, 0.01);
+			trace_p = glm::max(trace_p, 0.01);
 
-		if (trace_p <= generate_continuous(engine)) {
-			// ロシアンルーレットによる終了
-			return Vec3();
-		}
+			if (trace_p <= generate_continuous(engine)) {
+				// ロシアンルーレットによる終了
+				return Vec3();
+			}
 
-		Vec3 omega_o = -ray.d;
-		if (auto lambert = boost::get<LambertMaterial>(&surface.m)) {
+			Vec3 omega_o = -curr_ray.d;
+			if (auto lambert = boost::get<LambertMaterial>(&surface.m)) {
+				double brdf = glm::one_over_pi<double>();
 
-			// value * 0.25 * x = value * 0.5
-			// 0.25 * x = 0.5
-			// x = 0.5 / 0.25
-			// 
-			// double indirect_p = glm::max(0.95 * glm::pow(0.25, context.diffusion), 0.2);
-			double indirect_p = 0.5 * glm::pow(0.5, context.diffusion);
-			bool is_next_direct = indirect_p < generate_continuous(engine);
-			// double sample_pdf = is_next_direct ? (1.0 - indirect_p) / 0.5 : indirect_p / 0.5;
-			// double sample_pdf = 1.0;
-			HemisphereTransform hemisphereTransform(surface.n);
+				HemisphereTransform hemisphereTransform(surface.n);
 
+				double indirect_p = 0.5 * glm::pow(0.5, context.diffusion);
+				bool is_next_direct = indirect_p < generate_continuous(engine);
+				if (is_next_direct) {
+					if (boost::optional<Sample<Vec3>> sample_imp = sample_important_position(scene, surface.p, engine, context.diffusion)) {
+						Vec3 omega_i = glm::normalize(sample_imp->value - surface.p);
+						double pdf = sample_imp->pdf;
 
-			double pdf = 0.0;
-			Vec3 omega_i;
-			Vec3 L;
-			bool succeeded_direct_sample = false;
-
-			// ダイレクトサンプリング
-			if (is_next_direct) {
-				// TODO depthなにに使ってるんだっけ？
-				if (boost::optional<Sample<Vec3>> sample_imp = sample_important_position(scene, surface.p, engine, context.depth)) {
-					omega_i = glm::normalize(sample_imp->value - surface.p);
-					pdf = sample_imp->pdf;
-
-					if (0.0001 < glm::dot(omega_i, surface.n)) {
-						Ray next_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
-						L = radiance(next_ray, scene, engine, context.step().direct().diffuse(1.0).albedo(lambert->albedo)) / trace_p;
-						if (glm::any(glm::greaterThan(L, Vec3(0.0)))) {
-							succeeded_direct_sample = true;
+						if (0.0001 < glm::dot(omega_i, surface.n)) {
+							Ray direct_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
+							if (auto direct_intersection = intersect(direct_ray, scene)) {
+								if (is_important(scene, direct_intersection->object_id)) {
+									double cos_term = glm::dot(surface.n, omega_i);
+									coef *= lambert->albedo * brdf * cos_term / pdf / trace_p;
+									curr_ray = direct_ray;
+									context.step().diffuse(1.0).albedo(lambert->albedo);
+									intersection = direct_intersection;
+									skip_intersection = true;
+									continue;
+								}
+							}
 						}
 					}
 				}
-			}
 
-			// ダイレクトサンプリングがなされなかったとき
-			if (succeeded_direct_sample == false) {
-				// コサイン重点サンプリング
 				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
-				omega_i = hemisphereTransform.transform(cos_sample.value);
-				pdf = cos_sample.pdf;
+				Vec3 omega_i = hemisphereTransform.transform(cos_sample.value);
+				double pdf = cos_sample.pdf;
+				double cos_term = glm::dot(surface.n, omega_i);
+				coef *= lambert->albedo * brdf * cos_term / pdf / trace_p;
 
-				// 一様サンプリング
-				// omega_i = hemisphereTransform.transform(generate_on_hemisphere(engine));
-				// pdf = glm::one_over_two_pi<double>();
+				curr_ray = Ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
+				context.step().diffuse(1.0).albedo(lambert->albedo);
+				continue;
+			} else if(auto refrac = boost::get<RefractionMaterial>(&surface.m)) {
+				double eta = surface.isback ? refrac->ior / 1.0 : 1.0 / refrac->ior;
 
-				Ray next_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
-				L = radiance(next_ray, scene, engine, context.step().diffuse(1.0).albedo(lambert->albedo)) / trace_p;
+				auto fresnel = [](double costheta, double f0) {
+					double f = f0 + (1.0 - f0) * glm::pow(1.0 - costheta, 5.0);
+					return f;
+				};
+				double fresnel_value = fresnel(dot(omega_o, surface.n), 0.02);
+
+				if (fresnel_value < generate_continuous(engine)) {
+					auto omega_i_refract = refraction(-omega_o, surface.n, eta);
+
+					curr_ray = Ray(glm::fma(omega_i_refract, kReflectionBias, surface.p), omega_i_refract);
+					coef /= trace_p;
+					context.step();
+					continue;
+				}
+				else {
+					auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
+					curr_ray = Ray(glm::fma(omega_i_reflect, kReflectionBias, surface.p), omega_i_reflect);
+					coef /= trace_p;
+					context.step();
+					continue;
+				}
 			}
-
-			double brdf = glm::one_over_pi<double>();
-			double cos_term = glm::dot(surface.n, omega_i);
-			return lambert->albedo * brdf * cos_term * L / pdf;
-		} else if (auto refrac = boost::get<RefractionMaterial>(&surface.m)) {
-			double eta = surface.isback ? refrac->ior / 1.0 : 1.0 / refrac->ior;
-			
-			auto fresnel = [](double costheta, double f0) {
-				double f = f0 + (1.0 - f0) * glm::pow(1.0 - costheta, 5.0);
-				return f;
-			};
-			double fresnel_value = fresnel(dot(omega_o, surface.n), 0.02);
-
-			if (fresnel_value < generate_continuous(engine)) {
-				auto omega_i_refract = refraction(-omega_o, surface.n, eta);
-
-				Ray refract_ray;
-				refract_ray.o = glm::fma(omega_i_refract, kReflectionBias, surface.p);
-				refract_ray.d = omega_i_refract;
-				return radiance(refract_ray, scene, engine, context.step()) / trace_p;
-			}
-			else {
+			else if (auto specular = boost::get<PerfectSpecularMaterial>(&surface.m)) {
 				auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
-
-				Ray reflect_ray;
-				reflect_ray.o = glm::fma(omega_i_reflect, kReflectionBias, surface.p);
-				reflect_ray.d = omega_i_reflect;
-				return radiance(reflect_ray, scene, engine, context.step()) / trace_p;
+				curr_ray = Ray(glm::fma(omega_i_reflect, kReflectionBias, surface.p), omega_i_reflect);
+				coef /= trace_p;
+				context.step();
+				continue;
+			} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
+				return coef * emissive->color;
 			}
-		} else if (auto specular = boost::get<PerfectSpecularMaterial>(&surface.m)) {
-			auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
-			Ray reflect_ray;
-			reflect_ray.o = glm::fma(omega_i_reflect, kReflectionBias, surface.p);
-			reflect_ray.d = omega_i_reflect;
-			return radiance(reflect_ray, scene, engine, context.step()) / trace_p;
-		} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
-			return emissive->color;
 		}
-		return Vec3(0.1);
+		return Vec3(0.0);
 	}
+	//inline Vec3 radiance(const Ray &ray, const Scene &scene, EngineType &engine, const Context &context = Context()) {
+	//	auto intersection = intersect(ray, scene);
+	//	if (!intersection) {
+	//		return Vec3(0.0);
+	//	}
+
+	//	// ダイレクトサンプリング時、
+	//	// 目的のオブジェクトにたどり着けなかったら早々にあきらめる
+	//	if (context.is_direct_sample) {
+	//		auto intersected_id = intersection->object_id;
+	//		bool succeeded_sample = false;
+	//		for (const ImportantArea &area : boost::join(scene.lights, scene.importances)) {
+	//			if (area.object_id == intersected_id) {
+	//				succeeded_sample = true;
+	//				break;
+	//			}
+	//		}
+	//		if (succeeded_sample == false) {
+	//			return Vec3(0.0);
+	//		}
+	//	}
+
+	//	auto surface = intersection->surface;
+
+	//	// バイアスが発生するが堅実
+	//	if (kMaxDepth < context.depth) {
+	//		return Vec3(0.0);
+	//	}
+
+	//	// direct
+	//	// 0.0f => 失敗率100%
+	//	// 1.0f => 失敗率0%
+	//	double trace_p;
+	//	if (context.depth < kMinDepth) {
+	//		trace_p = 1.0;
+	//	}
+	//	else if (kMaxDepth < context.depth) {
+	//		return Vec3(0.0);
+	//	}
+	//	else {
+	//		if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
+	//			trace_p = 1.0;
+	//		}
+	//		else {
+	//			// 案外重要かも
+	//			trace_p = glm::max(glm::max(context.color_weight.r, context.color_weight.g), context.color_weight.b) * glm::pow(0.9, context.diffusion);
+	//			trace_p = glm::clamp(trace_p, 0.0, 1.0);
+	//		}
+	//	}
+
+	//	trace_p = glm::max(trace_p, 0.01);
+
+	//	if (trace_p <= generate_continuous(engine)) {
+	//		// ロシアンルーレットによる終了
+	//		return Vec3();
+	//	}
+
+	//	Vec3 omega_o = -ray.d;
+	//	if (auto lambert = boost::get<LambertMaterial>(&surface.m)) {
+
+	//		// value * 0.25 * x = value * 0.5
+	//		// 0.25 * x = 0.5
+	//		// x = 0.5 / 0.25
+	//		// 
+	//		// double indirect_p = glm::max(0.95 * glm::pow(0.25, context.diffusion), 0.2);
+	//		double indirect_p = 0.5 * glm::pow(0.5, context.diffusion);
+	//		bool is_next_direct = indirect_p < generate_continuous(engine);
+	//		// double sample_pdf = is_next_direct ? (1.0 - indirect_p) / 0.5 : indirect_p / 0.5;
+	//		// double sample_pdf = 1.0;
+	//		HemisphereTransform hemisphereTransform(surface.n);
+
+
+	//		double pdf = 0.0;
+	//		Vec3 omega_i;
+	//		Vec3 L;
+	//		bool succeeded_direct_sample = false;
+
+	//		// ダイレクトサンプリング
+	//		if (is_next_direct) {
+	//			// TODO depthなにに使ってるんだっけ？
+	//			if (boost::optional<Sample<Vec3>> sample_imp = sample_important_position(scene, surface.p, engine, context.depth)) {
+	//				omega_i = glm::normalize(sample_imp->value - surface.p);
+	//				pdf = sample_imp->pdf;
+
+	//				if (0.0001 < glm::dot(omega_i, surface.n)) {
+	//					Ray next_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
+	//					L = radiance(next_ray, scene, engine, context.step().direct().diffuse(1.0).albedo(lambert->albedo)) / trace_p;
+	//					if (glm::any(glm::greaterThan(L, Vec3(0.0)))) {
+	//						succeeded_direct_sample = true;
+	//					}
+	//				}
+	//			}
+	//		}
+
+	//		// ダイレクトサンプリングがなされなかったとき
+	//		if (succeeded_direct_sample == false) {
+	//			// コサイン重点サンプリング
+	//			Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
+	//			omega_i = hemisphereTransform.transform(cos_sample.value);
+	//			pdf = cos_sample.pdf;
+
+	//			// 一様サンプリング
+	//			// omega_i = hemisphereTransform.transform(generate_on_hemisphere(engine));
+	//			// pdf = glm::one_over_two_pi<double>();
+
+	//			Ray next_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
+	//			L = radiance(next_ray, scene, engine, context.step().diffuse(1.0).albedo(lambert->albedo)) / trace_p;
+	//		}
+
+	//		double brdf = glm::one_over_pi<double>();
+	//		double cos_term = glm::dot(surface.n, omega_i);
+	//		return lambert->albedo * brdf * cos_term * L / pdf;
+	//	} else if (auto refrac = boost::get<RefractionMaterial>(&surface.m)) {
+	//		double eta = surface.isback ? refrac->ior / 1.0 : 1.0 / refrac->ior;
+	//		
+	//		auto fresnel = [](double costheta, double f0) {
+	//			double f = f0 + (1.0 - f0) * glm::pow(1.0 - costheta, 5.0);
+	//			return f;
+	//		};
+	//		double fresnel_value = fresnel(dot(omega_o, surface.n), 0.02);
+
+	//		if (fresnel_value < generate_continuous(engine)) {
+	//			auto omega_i_refract = refraction(-omega_o, surface.n, eta);
+
+	//			Ray refract_ray;
+	//			refract_ray.o = glm::fma(omega_i_refract, kReflectionBias, surface.p);
+	//			refract_ray.d = omega_i_refract;
+	//			return radiance(refract_ray, scene, engine, context.step()) / trace_p;
+	//		}
+	//		else {
+	//			auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
+
+	//			Ray reflect_ray;
+	//			reflect_ray.o = glm::fma(omega_i_reflect, kReflectionBias, surface.p);
+	//			reflect_ray.d = omega_i_reflect;
+	//			return radiance(reflect_ray, scene, engine, context.step()) / trace_p;
+	//		}
+	//	} else if (auto specular = boost::get<PerfectSpecularMaterial>(&surface.m)) {
+	//		auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
+	//		Ray reflect_ray;
+	//		reflect_ray.o = glm::fma(omega_i_reflect, kReflectionBias, surface.p);
+	//		reflect_ray.d = omega_i_reflect;
+	//		return radiance(reflect_ray, scene, engine, context.step()) / trace_p;
+	//	} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
+	//		return emissive->color;
+	//	}
+	//	return Vec3(0.1);
+	//}
 
 	inline void step(AccumlationBuffer &buffer, const Scene &scene, int aa_sample) {
 		double aa_sample_inverse = 1.0 / aa_sample;
