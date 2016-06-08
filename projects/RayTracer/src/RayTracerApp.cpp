@@ -96,21 +96,20 @@ namespace lc {
 
 		Ray curr_ray = ray;
 		Vec3 coef(1.0);
+		Vec3 color;
+		double pdf_implicit = 0.0;
+		double pdf_explicit = 0.0;
 
-		bool skip_intersection = false;
-		boost::optional<MicroSurfaceIntersection> intersection;
+		// std::vector<Vec3> explicit_colors;
+
 		for (;;) {
-			if (skip_intersection) {
-				skip_intersection = false;
-			} else {
-				intersection = intersect(curr_ray, scene);
-			}
+			auto intersection = intersect(curr_ray, scene);
 			if (!intersection) {
-				return Vec3(0.0);
+				break;
 			}
 
 			if (kMaxDepth < context.depth) {
-				return Vec3(0.0);
+				break;
 			}
 
 			auto surface = intersection->surface;
@@ -118,9 +117,6 @@ namespace lc {
 			double trace_p;
 			if (context.depth < kMinDepth) {
 				trace_p = 1.0;
-			}
-			else if (kMaxDepth < context.depth) {
-				return Vec3(0.0);
 			}
 			else {
 				if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
@@ -137,7 +133,7 @@ namespace lc {
 
 			if (trace_p <= generate_continuous(engine)) {
 				// ロシアンルーレットによる終了
-				return Vec3();
+				break;
 			}
 
 			Vec3 omega_o = -curr_ray.d;
@@ -146,38 +142,49 @@ namespace lc {
 
 				HemisphereTransform hemisphereTransform(surface.n);
 
-				double indirect_p = 0.5 * glm::pow(0.5, context.diffusion);
-				bool is_next_direct = indirect_p < generate_continuous(engine);
-				if (is_next_direct) {
-					if (boost::optional<Sample<Vec3>> sample_imp = sample_important_position(scene, surface.p, engine, context.diffusion)) {
-						Vec3 omega_i = glm::normalize(sample_imp->value - surface.p);
-						double pdf = sample_imp->pdf;
+				//double indirect_p = 0.5 * glm::pow(0.5, context.diffusion);
+				//bool is_next_direct = indirect_p < generate_continuous(engine);
+				//if (is_next_direct) {
+				//	if (boost::optional<Sample<Vec3>> sample_imp = sample_important_position(scene, surface.p, engine, context.diffusion)) {
+				//		Vec3 omega_i = glm::normalize(sample_imp->value - surface.p);
+				//		double pdf = sample_imp->pdf;
 
-						if (0.0001 < glm::dot(omega_i, surface.n)) {
-							Ray direct_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
-							if (auto direct_intersection = intersect(direct_ray, scene)) {
-								if (is_important(scene, direct_intersection->object_id)) {
-									double cos_term = glm::dot(surface.n, omega_i);
-									coef *= lambert->albedo * brdf * cos_term / pdf / trace_p;
-									curr_ray = direct_ray;
-									context.step().diffuse(1.0).albedo(lambert->albedo);
-									intersection = direct_intersection;
-									skip_intersection = true;
-									continue;
-								}
-							}
-						}
-					}
-				}
+				//		if (0.0001 < glm::dot(omega_i, surface.n)) {
+				//			Ray direct_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
+				//			if (auto direct_intersection = intersect(direct_ray, scene)) {
+				//				if (is_important(scene, direct_intersection->object_id)) {
+				//					double cos_term = glm::dot(surface.n, omega_i);
+				//					coef *= lambert->albedo * brdf * cos_term / pdf / trace_p;
+				//					curr_ray = direct_ray;
+				//					context.step().diffuse(1.0).albedo(lambert->albedo);
+				//					intersection = direct_intersection;
+				//					skip_intersection = true;
+				//					continue;
+				//				}
+				//			}
+				//		}
+				//	}
+				//}
+
 
 				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
 				Vec3 omega_i = hemisphereTransform.transform(cos_sample.value);
-				double pdf = cos_sample.pdf;
+				pdf_implicit = cos_sample.pdf;
 				double cos_term = glm::dot(surface.n, omega_i);
-				coef *= lambert->albedo * brdf * cos_term / pdf / trace_p;
+				// coef *= lambert->albedo * brdf * cos_term / pdf_implicit / trace_p;
+				coef *= lambert->albedo * brdf * cos_term / trace_p;
+
+				auto direct = direct_sample(scene, surface.p, engine);
+				if (auto direct_intersection = intersect(direct.ray, scene)) {
+					if (auto emissive = boost::get<EmissiveMaterial>(&direct_intersection->surface.m)) {
+						color += coef * emissive->color / direct.pdf;
+					}
+				}
+
 
 				curr_ray = Ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
 				context.step().diffuse(1.0).albedo(lambert->albedo);
+
 				continue;
 			} else if(auto refrac = boost::get<RefractionMaterial>(&surface.m)) {
 				double eta = surface.isback ? refrac->ior / 1.0 : 1.0 / refrac->ior;
@@ -211,10 +218,15 @@ namespace lc {
 				context.step();
 				continue;
 			} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
-				return coef * emissive->color;
+				if (context.diffusion < glm::epsilon<double>()) {
+					return emissive->color;
+				}
+				break;
+				// TODO
+				// return coef * emissive->color;
 			}
 		}
-		return Vec3(0.0);
+		return color;
 	}
 	//inline Vec3 radiance(const Ray &ray, const Scene &scene, EngineType &engine, const Context &context = Context()) {
 	//	auto intersection = intersect(ray, scene);

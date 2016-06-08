@@ -102,6 +102,7 @@ namespace lc {
 				distance_pq = glm::distance(p, q);
 			} while (distance_pq < eps);
 
+			// PDFが小さい => 面積が大きい, 角度がついていない, 距離が短い
 			Sample<Vec3> s;
 			s.value = q;
 			double A = 4.0 * glm::pi<double>() * shape.radius * shape.radius;
@@ -122,39 +123,58 @@ namespace lc {
 		std::vector<ImportantArea> importances;
 	};
 
+	struct DirectSample {
+		Ray ray;
+		double pdf = 0.0;
+	};
+
 	template <class E>
-	boost::optional<Sample<Vec3>> sample_important_position(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine, double diffusion) {
-		if (scene.lights.empty() && scene.importances.empty()) {
-			return boost::none;
-		}
-
-		// モジュロバイアスはNが十分に小さいので無視する
-		if (scene.importances.empty() && scene.lights.empty() == false) {
-			return scene.lights.size() == 1 ?
-				scene.lights[0].sample(p, engine)
-				:
-				scene.lights[engine() % scene.lights.size()].sample(p, engine);
-		}
-		if (scene.importances.empty() == false && scene.lights.empty()) {
-			return scene.importances.size() == 1 ?
-				scene.importances[0].sample(p, engine)
-				:
-				scene.importances[engine() % scene.importances.size()].sample(p, engine);
-		}
-
-		// 探索が深ければ、ライトサンプリングの確率は上げたほうがいい
-		bool is_light_sampleing = 0.25 * glm::pow(0.25, diffusion) < generate_continuous(engine);
-		if (is_light_sampleing) {
-			return scene.lights.size() == 1 ?
-				scene.lights[0].sample(p, engine)
-				:
-				scene.lights[engine() % scene.lights.size()].sample(p, engine);
-		}
-		return scene.importances.size() == 1 ?
-			scene.importances[0].sample(p, engine)
+	DirectSample direct_sample(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine) {
+		Sample<Vec3> on_light = scene.lights.size() == 1 ?
+			scene.lights[0].sample(p, engine)
 			:
-			scene.importances[engine() % scene.importances.size()].sample(p, engine);
+			scene.lights[engine() % scene.lights.size()].sample(p, engine);
+		Vec3 direction = glm::normalize(on_light.value - p);
+
+		DirectSample ds;
+		ds.pdf = on_light.pdf;
+		ds.ray = Ray(glm::fma(direction, kReflectionBias, p), direction);
+		return ds;
 	}
+
+	//template <class E>
+	//boost::optional<Sample<Vec3>> sample_important_position(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine, double diffusion) {
+	//	if (scene.lights.empty() && scene.importances.empty()) {
+	//		return boost::none;
+	//	}
+
+	//	// モジュロバイアスはNが十分に小さいので無視する
+	//	if (scene.importances.empty() && scene.lights.empty() == false) {
+	//		return scene.lights.size() == 1 ?
+	//			scene.lights[0].sample(p, engine)
+	//			:
+	//			scene.lights[engine() % scene.lights.size()].sample(p, engine);
+	//	}
+	//	if (scene.importances.empty() == false && scene.lights.empty()) {
+	//		return scene.importances.size() == 1 ?
+	//			scene.importances[0].sample(p, engine)
+	//			:
+	//			scene.importances[engine() % scene.importances.size()].sample(p, engine);
+	//	}
+
+	//	// 探索が深ければ、ライトサンプリングの確率は上げたほうがいい
+	//	bool is_light_sampleing = 0.25 * glm::pow(0.25, diffusion) < generate_continuous(engine);
+	//	if (is_light_sampleing) {
+	//		return scene.lights.size() == 1 ?
+	//			scene.lights[0].sample(p, engine)
+	//			:
+	//			scene.lights[engine() % scene.lights.size()].sample(p, engine);
+	//	}
+	//	return scene.importances.size() == 1 ?
+	//		scene.importances[0].sample(p, engine)
+	//		:
+	//		scene.importances[engine() % scene.importances.size()].sample(p, engine);
+	//}
 
 	inline bool is_important(const Scene &scene, const boost::uuids::uuid &object_id) {
 		bool important = false;
