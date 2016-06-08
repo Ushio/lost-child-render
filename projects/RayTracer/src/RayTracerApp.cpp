@@ -96,11 +96,16 @@ namespace lc {
 
 		Ray curr_ray = ray;
 		Vec3 coef(1.0);
-		Vec3 color;
-		double pdf_implicit = 0.0;
-		double pdf_explicit = 0.0;
-
+		
 		// std::vector<Vec3> explicit_colors;
+
+		struct Contribution {
+			Vec3 color;
+			double pdf = 0.0;
+		};
+		std::vector<Contribution> explicit_contributions;
+		explicit_contributions.reserve(10);
+		Contribution implicit_contribution;
 
 		for (;;) {
 			auto intersection = intersect(curr_ray, scene);
@@ -169,7 +174,6 @@ namespace lc {
 
 				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
 				Vec3 omega_i = hemisphereTransform.transform(cos_sample.value);
-				pdf_implicit = cos_sample.pdf;
 				double cos_term = glm::dot(surface.n, omega_i);
 				// coef *= lambert->albedo * brdf * cos_term / pdf_implicit / trace_p;
 				coef *= lambert->albedo * brdf * cos_term / trace_p;
@@ -177,10 +181,17 @@ namespace lc {
 				auto direct = direct_sample(scene, surface.p, engine);
 				if (auto direct_intersection = intersect(direct.ray, scene)) {
 					if (auto emissive = boost::get<EmissiveMaterial>(&direct_intersection->surface.m)) {
-						color += coef * emissive->color / direct.pdf;
+						Contribution c;
+						c.color = coef * emissive->color / direct.pdf;
+						c.pdf = direct.pdf;
+						explicit_contributions.push_back(c);
 					}
 				}
-
+				if (implicit_contribution.pdf < glm::epsilon<double>()) {
+					implicit_contribution.pdf = cos_sample.pdf;
+				} else {
+					implicit_contribution.pdf *= cos_sample.pdf;
+				}
 
 				curr_ray = Ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
 				context.step().diffuse(1.0).albedo(lambert->albedo);
@@ -218,6 +229,8 @@ namespace lc {
 				context.step();
 				continue;
 			} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
+				implicit_contribution.color = coef * emissive->color / implicit_contribution.pdf / trace_p;
+
 				if (context.diffusion < glm::epsilon<double>()) {
 					return emissive->color;
 				}
@@ -225,6 +238,32 @@ namespace lc {
 				// TODO
 				// return coef * emissive->color;
 			}
+		}
+
+		//printf("im: %.2f, ex: ", implicit_contribution.pdf);
+		//Vec3 color;
+		//for (int i = 0; i < explicit_contributions.size(); ++i) {
+		//	color += explicit_contributions[i].color;
+		//	printf("%.2f, ", explicit_contributions[i].pdf);
+		//}
+		//printf("\n");
+		// return glm::mix(color, implicit_contribution.color, 0.5);
+		if (explicit_contributions.empty()) {
+			return implicit_contribution.color;
+		}
+		if (implicit_contribution.pdf < glm::epsilon<double>()) {
+			return Vec3();
+		}
+
+		Vec3 imp_color = implicit_contribution.color / explicit_contributions.size();
+		Vec3 color;
+		for (int i = 0; i < explicit_contributions.size(); ++i) {
+			double ws = explicit_contributions[i].pdf + implicit_contribution.pdf;
+			Vec3 value = 
+				explicit_contributions[i].color * explicit_contributions[i].pdf
+				+
+				imp_color * implicit_contribution.pdf;
+			color += value / ws;
 		}
 		return color;
 	}
@@ -380,6 +419,7 @@ namespace lc {
 	inline void step(AccumlationBuffer &buffer, const Scene &scene, int aa_sample) {
 		double aa_sample_inverse = 1.0 / aa_sample;
 		concurrency::parallel_for<int>(0, buffer._height, [&buffer, &scene, aa_sample, aa_sample_inverse](int y) {
+		// for (int y = 0; y < buffer._height; ++y) {
 			for (int x = 0; x < buffer._width; ++x) {
 				int index = y * buffer._width + x;
 				AccumlationBuffer::Pixel &pixel = buffer._data[index];
@@ -407,6 +447,7 @@ namespace lc {
 				}
 			}
 		});
+		//}
 
 		buffer._iteration += 1;
 		buffer._ray_count += aa_sample;
