@@ -142,6 +142,20 @@ namespace lc {
 		return ds;
 	}
 
+	template <class E>
+	DirectSample important_object_sample(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine) {
+		Sample<Vec3> on_importance = scene.importances.size() == 1 ?
+			scene.importances[0].sample(p, engine)
+			:
+			scene.importances[engine() % scene.importances.size()].sample(p, engine);
+		Vec3 direction = glm::normalize(on_importance.value - p);
+
+		DirectSample ds;
+		ds.pdf = on_importance.pdf;
+		ds.ray = Ray(glm::fma(direction, kReflectionBias, p), direction);
+		return ds;
+	}
+
 	//template <class E>
 	//boost::optional<Sample<Vec3>> sample_important_position(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine, double diffusion) {
 	//	if (scene.lights.empty() && scene.importances.empty()) {

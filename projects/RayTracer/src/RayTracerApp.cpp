@@ -171,9 +171,21 @@ namespace lc {
 				//	}
 				//}
 
+				Ray next_ray;
+				double implicit_pdf;
+				//if (scene.importances.empty() || generate_continuous(engine) < 0.5) {
+					Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
+					Vec3 direction = hemisphereTransform.transform(cos_sample.value);
+					implicit_pdf = cos_sample.pdf;
+					next_ray = Ray(glm::fma(direction, kReflectionBias, surface.p), direction);
+				//}
+				//else {
+				//	auto s = important_object_sample(scene, surface.p, engine);
+				//	next_ray = s.ray;
+				//	implicit_pdf = s.pdf;
+				//}
+				Vec3 omega_i = next_ray.d;
 
-				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
-				Vec3 omega_i = hemisphereTransform.transform(cos_sample.value);
 				double cos_term = glm::dot(surface.n, omega_i);
 				// coef *= lambert->albedo * brdf * cos_term / pdf_implicit / trace_p;
 				coef *= lambert->albedo * brdf * cos_term / trace_p;
@@ -188,9 +200,9 @@ namespace lc {
 					}
 				}
 				if (implicit_contribution.pdf < glm::epsilon<double>()) {
-					implicit_contribution.pdf = cos_sample.pdf;
+					implicit_contribution.pdf = implicit_pdf;
 				} else {
-					implicit_contribution.pdf *= cos_sample.pdf;
+					implicit_contribution.pdf *= implicit_pdf;
 				}
 
 				curr_ray = Ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
