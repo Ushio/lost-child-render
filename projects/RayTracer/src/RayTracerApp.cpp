@@ -99,6 +99,7 @@ namespace lc {
 		
 		// std::vector<Vec3> explicit_colors;
 
+		double explicit_pdf = 1.0;
 		struct Contribution {
 			Vec3 color;
 			double pdf = 0.0;
@@ -195,10 +196,13 @@ namespace lc {
 					if (auto emissive = boost::get<EmissiveMaterial>(&direct_intersection->surface.m)) {
 						Contribution c;
 						c.color = coef * emissive->color / direct.pdf;
-						c.pdf = direct.pdf;
+						c.pdf = explicit_pdf * direct.pdf;
 						explicit_contributions.push_back(c);
 					}
 				}
+
+				explicit_pdf *= implicit_pdf;
+
 				if (implicit_contribution.pdf < glm::epsilon<double>()) {
 					implicit_contribution.pdf = implicit_pdf;
 				} else {
@@ -267,15 +271,16 @@ namespace lc {
 			return Vec3();
 		}
 
+		auto lm = [](Vec3 c) {
+			return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
+		};
+
 		Vec3 imp_color = implicit_contribution.color / explicit_contributions.size();
 		Vec3 color;
 		for (int i = 0; i < explicit_contributions.size(); ++i) {
-			double ws = explicit_contributions[i].pdf + implicit_contribution.pdf;
-			Vec3 value = 
-				explicit_contributions[i].color * explicit_contributions[i].pdf
-				+
-				imp_color * implicit_contribution.pdf;
-			color += value / ws;
+			double ws = lm(explicit_contributions[i].color) * explicit_contributions[i].pdf + lm(imp_color) * implicit_contribution.pdf;
+			double w = lm(explicit_contributions[i].color) * explicit_contributions[i].pdf / ws;
+			color += glm::mix(explicit_contributions[i].color, imp_color, w);
 		}
 		return color;
 	}
