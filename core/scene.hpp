@@ -13,8 +13,25 @@
 #include "material.hpp"
 
 namespace lc {
-	struct SphereObject {
+	class ILight {
+	public:
+		virtual ~ILight() {}
+		virtual EmissiveMaterial emissive_material() const = 0;
+		virtual Sample<Vec3> on_light(EngineType &e) const = 0;
+	};
+
+	struct SphereObject : public ILight {
 		SphereObject(const Sphere &s, const Material &m) :sphere(s), material(m) {}
+
+		virtual EmissiveMaterial emissive_material() const {
+			return boost::get<EmissiveMaterial>(material);
+		}
+		virtual Sample<Vec3> on_light(EngineType &e) const {
+			Sample<Vec3> s;
+			s.value = sphere.center + generate_on_sphere(e) * sphere.radius;
+			s.pdf = 1.0 / (4.0 * glm::pi<double>() * sphere.radius * sphere.radius);
+			return s;
+		}
 
 		Sphere sphere;
 		Material material;
@@ -77,84 +94,108 @@ namespace lc {
 
 	typedef boost::variant<SphereObject, ConelBoxObject, TriangleMeshObject> SceneObject;
 
-	struct ImportantArea {
-		ImportantArea() {}
-		ImportantArea(const Sphere &sphere, const boost::uuids::uuid &uuid) :shape(sphere), object_id(uuid) {}
+	//struct ImportantArea {
+	//	ImportantArea() {}
+	//	ImportantArea(const Sphere &sphere, const boost::uuids::uuid &uuid) :shape(sphere), object_id(uuid) {}
 
-		Sphere shape;
-		boost::uuids::uuid object_id;
-		// double importance = 1.0;
+	//	Sphere shape;
+	//	boost::uuids::uuid object_id;
+	//	// double importance = 1.0;
 
-		// boost::variant<Sphere, AABB> shape;
+	//	// boost::variant<Sphere, AABB> shape;
 
-		/* p が重点サンプルの基準点 */
-		template <class E>
-		Sample<Vec3> sample(const Vec3 &p, RandomEngine<E> &engine) const {
-			const double eps = 0.01;
-			const double pdf_min = 0.01;
+	//	/* p が重点サンプルの基準点 */
+	//	template <class E>
+	//	Sample<Vec3> sample(const Vec3 &p, RandomEngine<E> &engine) const {
+	//		const double eps = 0.01;
+	//		const double pdf_min = 0.01;
 
-			double distance_pq;
-			Vec3 q;
-			Vec3 qn;
-			do {
-				q = shape.center + generate_on_sphere(engine) * shape.radius;
-				qn = glm::normalize(q - shape.center);
-				distance_pq = glm::distance(p, q);
-			} while (distance_pq < eps);
+	//		double distance_pq;
+	//		Vec3 q;
+	//		Vec3 qn;
+	//		do {
+	//			q = shape.center + generate_on_sphere(engine) * shape.radius;
+	//			qn = glm::normalize(q - shape.center);
+	//			distance_pq = glm::distance(p, q);
+	//		} while (distance_pq < eps);
 
-			// PDFが小さい => 面積が大きい, 角度がついていない, 距離が短い
-			Sample<Vec3> s;
-			s.value = q;
-			double A = 4.0 * glm::pi<double>() * shape.radius * shape.radius;
-			double cos_alpha = glm::max(glm::abs(glm::dot(qn, (p - q) / distance_pq)), eps); // あまり小さくなりすぎないように
-			s.pdf = distance_pq * distance_pq / (A * cos_alpha);
-			s.pdf = glm::max(s.pdf, pdf_min);
-			return s;
-		}
-	};
+	//		// PDFが小さい => 面積が大きい, 角度がついていない, 距離が短い
+	//		Sample<Vec3> s;
+	//		s.value = q;
+	//		double A = 4.0 * glm::pi<double>() * shape.radius * shape.radius;
+	//		double cos_alpha = glm::max(glm::abs(glm::dot(qn, (p - q) / distance_pq)), eps); // あまり小さくなりすぎないように
+	//		s.pdf = distance_pq * distance_pq / (A * cos_alpha);
+	//		s.pdf = glm::max(s.pdf, pdf_min);
+	//		return s;
+	//	}
+	//};
+
+	
 
 	struct Scene {
 		Transform viewTransform;
 		Camera camera;
 		std::vector<SceneObject> objects;
 
-		// 直接サンプリング
-		std::vector<ImportantArea> lights;
-		std::vector<ImportantArea> importances;
+		std::vector<ILight *> lights;
+
+		//// 直接サンプリング
+		//std::vector<ImportantArea> lights;
+		//std::vector<ImportantArea> importances;
 	};
+
+	struct OnLight {
+		Vec3 p;
+		double pdf = 0.0;
+		EmissiveMaterial emissive;
+	};
+	OnLight on_light(const Scene &scene, EngineType &engine) {
+		const ILight *light = scene.lights.size() == 1 ?
+			scene.lights[0]
+			:
+			scene.lights[engine() % scene.lights.size()];
+
+		Sample<Vec3> s = light->on_light(engine);
+
+		OnLight onLight;
+		onLight.emissive = light->emissive_material();
+		onLight.p = s.value;
+		onLight.pdf = s.pdf;
+		return onLight;
+	}
 
 	struct DirectSample {
 		Ray ray;
 		double pdf = 0.0;
 	};
 
-	template <class E>
-	DirectSample direct_sample(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine) {
-		Sample<Vec3> on_light = scene.lights.size() == 1 ?
-			scene.lights[0].sample(p, engine)
-			:
-			scene.lights[engine() % scene.lights.size()].sample(p, engine);
-		Vec3 direction = glm::normalize(on_light.value - p);
+	//template <class E>
+	//DirectSample direct_sample(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine) {
+	//	Sample<Vec3> on_light = scene.lights.size() == 1 ?
+	//		scene.lights[0].sample(p, engine)
+	//		:
+	//		scene.lights[engine() % scene.lights.size()].sample(p, engine);
+	//	Vec3 direction = glm::normalize(on_light.value - p);
 
-		DirectSample ds;
-		ds.pdf = on_light.pdf;
-		ds.ray = Ray(glm::fma(direction, kReflectionBias, p), direction);
-		return ds;
-	}
+	//	DirectSample ds;
+	//	ds.pdf = on_light.pdf;
+	//	ds.ray = Ray(glm::fma(direction, kReflectionBias, p), direction);
+	//	return ds;
+	//}
 
-	template <class E>
-	DirectSample important_object_sample(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine) {
-		Sample<Vec3> on_importance = scene.importances.size() == 1 ?
-			scene.importances[0].sample(p, engine)
-			:
-			scene.importances[engine() % scene.importances.size()].sample(p, engine);
-		Vec3 direction = glm::normalize(on_importance.value - p);
+	//template <class E>
+	//DirectSample important_object_sample(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine) {
+	//	Sample<Vec3> on_importance = scene.importances.size() == 1 ?
+	//		scene.importances[0].sample(p, engine)
+	//		:
+	//		scene.importances[engine() % scene.importances.size()].sample(p, engine);
+	//	Vec3 direction = glm::normalize(on_importance.value - p);
 
-		DirectSample ds;
-		ds.pdf = on_importance.pdf;
-		ds.ray = Ray(glm::fma(direction, kReflectionBias, p), direction);
-		return ds;
-	}
+	//	DirectSample ds;
+	//	ds.pdf = on_importance.pdf;
+	//	ds.ray = Ray(glm::fma(direction, kReflectionBias, p), direction);
+	//	return ds;
+	//}
 
 	//template <class E>
 	//boost::optional<Sample<Vec3>> sample_important_position(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine, double diffusion) {
@@ -189,7 +230,7 @@ namespace lc {
 	//		:
 	//		scene.importances[engine() % scene.importances.size()].sample(p, engine);
 	//}
-
+/*
 	inline bool is_important(const Scene &scene, const boost::uuids::uuid &object_id) {
 		bool important = false;
 		for (const ImportantArea &area : boost::join(scene.lights, scene.importances)) {
@@ -200,7 +241,7 @@ namespace lc {
 		}
 		return important;
 	}
-
+*/
 	template <class T, int MAX_SIZE>
 	struct LazyValue {
 		LazyValue() {}

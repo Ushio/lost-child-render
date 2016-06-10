@@ -135,6 +135,11 @@ namespace lc {
 		return sample;
 	}
 
+	// typedef MersenneTwister EngineType;
+	// typedef LCGs EngineType;
+	typedef Xor EngineType;
+	// typedef Xor128 EngineType;
+
 	//static std::vector<int> prime_numbers;
 
 	//inline void init_prime_numbers() {

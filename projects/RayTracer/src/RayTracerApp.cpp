@@ -32,11 +32,6 @@
 static const int wide = 256;
 
 namespace lc {
-	// typedef MersenneTwister EngineType;
-	// typedef LCGs EngineType;
-	typedef Xor EngineType;
-	// typedef Xor128 EngineType;
-
 	struct AccumlationBuffer {
 		AccumlationBuffer(int width, int height, int random_skip = 50):_width(width), _height(height), _data(width * height){
 			for (int y = 0; y < _height; ++y) {
@@ -91,123 +86,41 @@ namespace lc {
 		}
 	};
 
-	inline Vec3 radiance(const Ray &ray, const Scene &scene, EngineType &engine) {
-		Context context;
-
+	struct Path {
+		double pdf = 1.0;
+		std::vector<MicroSurface> intersections;
+	};
+	inline Path trace(const Ray &ray, const Scene &scene, EngineType &engine) {
 		Ray curr_ray = ray;
-		Vec3 coef(1.0);
-		
-		// std::vector<Vec3> explicit_colors;
 
-		struct Contribution {
-			Vec3 color;
-			double pdf = 0.0;
-		};
-		std::vector<Contribution> explicit_contributions;
-		explicit_contributions.reserve(10);
-		Contribution implicit_contribution;
+		Path path;
+		int diffusion_count = 0;
+		for (int i = 0; i < 10; ++i) {
+			// 数字を小さくすると早めに終了するようになる
+			if (glm::pow(0.5, diffusion_count) < generate_continuous(engine)) {
+				break;
+			}
 
-		for (;;) {
 			auto intersection = intersect(curr_ray, scene);
 			if (!intersection) {
 				break;
 			}
-
-			if (kMaxDepth < context.depth) {
-				break;
-			}
-
 			auto surface = intersection->surface;
-
-			double trace_p;
-			if (context.depth < kMinDepth) {
-				trace_p = 1.0;
-			}
-			else {
-				if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
-					trace_p = 1.0;
-				}
-				else {
-					// 案外重要かも
-					trace_p = glm::max(glm::max(context.color_weight.r, context.color_weight.g), context.color_weight.b) * glm::pow(0.9, context.diffusion);
-					trace_p = glm::clamp(trace_p, 0.0, 1.0);
-				}
-			}
-
-			trace_p = glm::max(trace_p, 0.01);
-
-			if (trace_p <= generate_continuous(engine)) {
-				// ロシアンルーレットによる終了
-				break;
-			}
 
 			Vec3 omega_o = -curr_ray.d;
 			if (auto lambert = boost::get<LambertMaterial>(&surface.m)) {
-				double brdf = glm::one_over_pi<double>();
+				diffusion_count++;
 
 				HemisphereTransform hemisphereTransform(surface.n);
 
-				//double indirect_p = 0.5 * glm::pow(0.5, context.diffusion);
-				//bool is_next_direct = indirect_p < generate_continuous(engine);
-				//if (is_next_direct) {
-				//	if (boost::optional<Sample<Vec3>> sample_imp = sample_important_position(scene, surface.p, engine, context.diffusion)) {
-				//		Vec3 omega_i = glm::normalize(sample_imp->value - surface.p);
-				//		double pdf = sample_imp->pdf;
+				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
+				Vec3 direction = hemisphereTransform.transform(cos_sample.value);
+				double pdf = cos_sample.pdf;
 
-				//		if (0.0001 < glm::dot(omega_i, surface.n)) {
-				//			Ray direct_ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
-				//			if (auto direct_intersection = intersect(direct_ray, scene)) {
-				//				if (is_important(scene, direct_intersection->object_id)) {
-				//					double cos_term = glm::dot(surface.n, omega_i);
-				//					coef *= lambert->albedo * brdf * cos_term / pdf / trace_p;
-				//					curr_ray = direct_ray;
-				//					context.step().diffuse(1.0).albedo(lambert->albedo);
-				//					intersection = direct_intersection;
-				//					skip_intersection = true;
-				//					continue;
-				//				}
-				//			}
-				//		}
-				//	}
-				//}
+				path.pdf *= pdf;
+				path.intersections.push_back(surface);
 
-				Ray next_ray;
-				double implicit_pdf;
-				//if (scene.importances.empty() || generate_continuous(engine) < 0.5) {
-					Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
-					Vec3 direction = hemisphereTransform.transform(cos_sample.value);
-					implicit_pdf = cos_sample.pdf;
-					next_ray = Ray(glm::fma(direction, kReflectionBias, surface.p), direction);
-				//}
-				//else {
-				//	auto s = important_object_sample(scene, surface.p, engine);
-				//	next_ray = s.ray;
-				//	implicit_pdf = s.pdf;
-				//}
-				Vec3 omega_i = next_ray.d;
-
-				double cos_term = glm::dot(surface.n, omega_i);
-				// coef *= lambert->albedo * brdf * cos_term / pdf_implicit / trace_p;
-				coef *= lambert->albedo * brdf * cos_term / trace_p;
-
-				auto direct = direct_sample(scene, surface.p, engine);
-				if (auto direct_intersection = intersect(direct.ray, scene)) {
-					if (auto emissive = boost::get<EmissiveMaterial>(&direct_intersection->surface.m)) {
-						Contribution c;
-						c.color = coef * emissive->color / direct.pdf;
-						c.pdf = direct.pdf;
-						explicit_contributions.push_back(c);
-					}
-				}
-				if (implicit_contribution.pdf < glm::epsilon<double>()) {
-					implicit_contribution.pdf = implicit_pdf;
-				} else {
-					implicit_contribution.pdf *= implicit_pdf;
-				}
-
-				curr_ray = Ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
-				context.step().diffuse(1.0).albedo(lambert->albedo);
-
+				curr_ray = Ray(glm::fma(direction, kReflectionBias, surface.p), direction);
 				continue;
 			} else if(auto refrac = boost::get<RefractionMaterial>(&surface.m)) {
 				double eta = surface.isback ? refrac->ior / 1.0 : 1.0 / refrac->ior;
@@ -220,65 +133,329 @@ namespace lc {
 
 				if (fresnel_value < generate_continuous(engine)) {
 					auto omega_i_refract = refraction(-omega_o, surface.n, eta);
-
 					curr_ray = Ray(glm::fma(omega_i_refract, kReflectionBias, surface.p), omega_i_refract);
-					coef /= trace_p;
-					context.step();
+
+					path.intersections.push_back(surface);
+
 					continue;
 				}
 				else {
 					auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
 					curr_ray = Ray(glm::fma(omega_i_reflect, kReflectionBias, surface.p), omega_i_reflect);
-					coef /= trace_p;
-					context.step();
+					
+					path.intersections.push_back(surface);
+
 					continue;
 				}
 			}
 			else if (auto specular = boost::get<PerfectSpecularMaterial>(&surface.m)) {
 				auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
 				curr_ray = Ray(glm::fma(omega_i_reflect, kReflectionBias, surface.p), omega_i_reflect);
-				coef /= trace_p;
-				context.step();
+				
+				path.intersections.push_back(surface);
+
 				continue;
 			} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
-				implicit_contribution.color = coef * emissive->color / implicit_contribution.pdf / trace_p;
-
-				if (context.diffusion < glm::epsilon<double>()) {
-					return emissive->color;
-				}
+				path.intersections.push_back(surface);
 				break;
-				// TODO
-				// return coef * emissive->color;
 			}
 		}
+		return path;
+	}
 
-		//printf("im: %.2f, ex: ", implicit_contribution.pdf);
-		//Vec3 color;
-		//for (int i = 0; i < explicit_contributions.size(); ++i) {
-		//	color += explicit_contributions[i].color;
-		//	printf("%.2f, ", explicit_contributions[i].pdf);
-		//}
-		//printf("\n");
-		// return glm::mix(color, implicit_contribution.color, 0.5);
-		if (explicit_contributions.empty()) {
-			return implicit_contribution.color;
-		}
-		if (implicit_contribution.pdf < glm::epsilon<double>()) {
+	inline Vec3 radiance(const Ray &camera_ray, const Scene &scene, EngineType &engine) {
+		// カメラトレーシング
+		Path from_camera = trace(camera_ray, scene, engine);
+		
+		// ライトからのレイを生成する
+		OnLight light = on_light(scene, engine);
+		Ray light_ray = Ray(light.p, generate_on_sphere(engine));
+
+		// ライトトレーシング
+		Path from_light = trace(light_ray, scene, engine);
+
+		//// 出発点を決めるPDF
+		from_light.pdf *= light.pdf;
+
+		//// 向きを決めるPDF
+		from_light.pdf *= (1.0 / (4.0 * glm::pi<double>()));
+
+		// マージする
+		Path final_path = from_camera;
+		
+		if (final_path.intersections.empty()) {
+			// そもそもカメラレイが衝突していない
 			return Vec3();
 		}
 
-		Vec3 imp_color = implicit_contribution.color / explicit_contributions.size();
-		Vec3 color;
-		for (int i = 0; i < explicit_contributions.size(); ++i) {
-			double ws = explicit_contributions[i].pdf + implicit_contribution.pdf;
-			Vec3 value = 
-				explicit_contributions[i].color * explicit_contributions[i].pdf
-				+
-				imp_color * implicit_contribution.pdf;
-			color += value / ws;
+		bool already_done = boost::get<EmissiveMaterial>(&final_path.intersections[final_path.intersections.size() - 1].m) != nullptr;
+		if (already_done == false) {
+			if (from_light.intersections.empty()) {
+				// そもそもライトレイが衝突していない
+				return Vec3();
+			}
+			// 接続する条件がそろった
+			MicroSurface camera_end = final_path.intersections[final_path.intersections.size() - 1];
+			MicroSurface light_begin = from_light.intersections[from_light.intersections.size() - 1];
+
+			Ray connect_ray = Ray(camera_end.p, glm::normalize(light_begin.p - camera_end.p));
+			
+			// TODO ゼロ距離
+
+			auto intersection = intersect(connect_ray, scene);
+			if (!intersection) {
+				// 接続に失敗
+				return Vec3();
+			}
+
+			if (glm::epsilon<double>() < glm::distance2(intersection->surface.p, light_begin.p)) {
+				// 接続に失敗
+				return Vec3();
+			}
+
+			// 成功！
+			Vec3 p0 = camera_end.p;
+			Vec3 center = light_begin.p;
+			Vec3 p1;
+			if (from_light.intersections.size() == 1) {
+				p1 = light.p;
+			}
+			else {
+				p1 = from_light.intersections[from_light.intersections.size() - 2].p;
+			}
+			Vec3 d0 = glm::normalize(p0 - center);
+			Vec3 d1 = glm::normalize(p1 - center);
+
+			double a = glm::max(glm::dot(d1, light_begin.n), 0.0) * glm::distance2(p0, center);
+			double b = glm::max(glm::dot(d0, light_begin.n), 0.0) * glm::distance2(p1, center);
+			double connection_pdf = a / glm::max(b, 0.0001);
+			//final_path.pdf *= connection_pdf;
+			final_path.pdf *= from_light.pdf;
+
+			// 出発点を決めるPDF
+			// final_path.pdf *= light.pdf;
+
+			// 向きを決めるPDF
+			// final_path.pdf *= (1.0 / (4.0 * glm::pi<double>()));
+
+			while (from_light.intersections.empty() == false) {
+				final_path.intersections.push_back(from_light.intersections[from_light.intersections.size() - 1]);
+				from_light.intersections.pop_back();
+			}
+
+			// 最後にライトマテリアルを挿入
+			// 法線などはライトでは無視するので良い
+			MicroSurface light_surface;
+			light_surface.m = light.emissive;
+			light_surface.p = light.p;
+			final_path.intersections.push_back(light_surface);
+		} // 片方向ですでにトレースが完了していたのでスキップ
+		
+
+		Vec3 origin = camera_ray.o;
+		Vec3 omega_o = camera_ray.d;
+		Vec3 coef(1.0);
+
+		double G = 1.0;
+		for (int i = 0; i < final_path.intersections.size(); ++i) {
+			MicroSurface surface = final_path.intersections[i];
+
+			if (auto lambert = boost::get<LambertMaterial>(&surface.m)) {
+				if (i < final_path.intersections.size() - 1) {
+					Vec3 p0 = origin;
+					Vec3 p1 = surface.p;
+					Vec3 p2 = final_path.intersections[i + 1].p;
+
+					Vec3 d0 = glm::normalize(p2 - p1);
+					Vec3 d1 = glm::normalize(p1 - p2);
+					Vec3 n1 = surface.n;
+					Vec3 n2 = final_path.intersections[i + 1].n;
+
+					double g = glm::max(glm::dot(d0, n1), 0.0) * glm::max(glm::dot(d1, n2), 0.0) / glm::distance2(p1, p2);
+					G *= g;
+				}
+
+				Vec3 next_p = final_path.intersections[i + 1].p;
+				Vec3 omega_i = glm::normalize(next_p - origin);
+				double brdf = glm::one_over_pi<double>();
+				double cos_term = glm::dot(surface.n, omega_i);
+				coef *= lambert->albedo * brdf * cos_term;
+
+				omega_o = -omega_i;
+				origin = next_p;
+			} else if(auto refrac = boost::get<RefractionMaterial>(&surface.m)) {
+				Vec3 next_p = final_path.intersections[i + 1].p;
+				Vec3 omega_i = glm::normalize(next_p - origin);
+				omega_o = -omega_i;
+				origin = next_p;
+			} else if (auto specular = boost::get<PerfectSpecularMaterial>(&surface.m)) {
+				Vec3 next_p = final_path.intersections[i + 1].p;
+				Vec3 omega_i = glm::normalize(next_p - origin);
+				omega_o = -omega_i;
+				origin = next_p;
+			} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
+				return coef * emissive->color *G / final_path.pdf;
+			}
 		}
-		return color;
+
+		return Vec3();
 	}
+
+	//inline Vec3 radiance(const Ray &ray, const Scene &scene, EngineType &engine) {
+	//	Context context;
+
+	//	Ray curr_ray = ray;
+	//	Vec3 coef(1.0);
+	//	
+	//	struct Contribution {
+	//		Vec3 color;
+	//		double pdf = 0.0;
+	//	};
+	//	std::vector<Contribution> explicit_contributions;
+	//	explicit_contributions.reserve(10);
+	//	Contribution implicit_contribution;
+
+	//	for (;;) {
+	//		auto intersection = intersect(curr_ray, scene);
+	//		if (!intersection) {
+	//			break;
+	//		}
+
+	//		if (kMaxDepth < context.depth) {
+	//			break;
+	//		}
+
+	//		auto surface = intersection->surface;
+
+	//		double trace_p;
+	//		if (context.depth < kMinDepth) {
+	//			trace_p = 1.0;
+	//		}
+	//		else {
+	//			if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
+	//				trace_p = 1.0;
+	//			}
+	//			else {
+	//				// 案外重要かも
+	//				trace_p = glm::max(glm::max(context.color_weight.r, context.color_weight.g), context.color_weight.b) * glm::pow(0.9, context.diffusion);
+	//				trace_p = glm::clamp(trace_p, 0.0, 1.0);
+	//			}
+	//		}
+
+	//		trace_p = glm::max(trace_p, 0.01);
+
+	//		if (trace_p <= generate_continuous(engine)) {
+	//			// ロシアンルーレットによる終了
+	//			break;
+	//		}
+
+	//		Vec3 omega_o = -curr_ray.d;
+	//		if (auto lambert = boost::get<LambertMaterial>(&surface.m)) {
+	//			double brdf = glm::one_over_pi<double>();
+
+	//			HemisphereTransform hemisphereTransform(surface.n);
+
+	//			Ray next_ray;
+	//			double implicit_pdf;
+	//				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
+	//				Vec3 direction = hemisphereTransform.transform(cos_sample.value);
+	//				implicit_pdf = cos_sample.pdf;
+	//				next_ray = Ray(glm::fma(direction, kReflectionBias, surface.p), direction);
+	//			
+	//			Vec3 omega_i = next_ray.d;
+
+	//			double cos_term = glm::dot(surface.n, omega_i);
+	//			coef *= lambert->albedo * brdf * cos_term / trace_p;
+
+	//			auto direct = direct_sample(scene, surface.p, engine);
+	//			if (auto direct_intersection = intersect(direct.ray, scene)) {
+	//				if (auto emissive = boost::get<EmissiveMaterial>(&direct_intersection->surface.m)) {
+	//					Contribution c;
+	//					c.color = coef * emissive->color / direct.pdf;
+	//					c.pdf = direct.pdf;
+	//					explicit_contributions.push_back(c);
+	//				}
+	//			}
+	//			if (implicit_contribution.pdf < glm::epsilon<double>()) {
+	//				implicit_contribution.pdf = implicit_pdf;
+	//			} else {
+	//				implicit_contribution.pdf *= implicit_pdf;
+	//			}
+
+	//			curr_ray = Ray(glm::fma(omega_i, kReflectionBias, surface.p), omega_i);
+	//			context.step().diffuse(1.0).albedo(lambert->albedo);
+
+	//			continue;
+	//		} else if(auto refrac = boost::get<RefractionMaterial>(&surface.m)) {
+	//			double eta = surface.isback ? refrac->ior / 1.0 : 1.0 / refrac->ior;
+
+	//			auto fresnel = [](double costheta, double f0) {
+	//				double f = f0 + (1.0 - f0) * glm::pow(1.0 - costheta, 5.0);
+	//				return f;
+	//			};
+	//			double fresnel_value = fresnel(dot(omega_o, surface.n), 0.02);
+
+	//			if (fresnel_value < generate_continuous(engine)) {
+	//				auto omega_i_refract = refraction(-omega_o, surface.n, eta);
+
+	//				curr_ray = Ray(glm::fma(omega_i_refract, kReflectionBias, surface.p), omega_i_refract);
+	//				coef /= trace_p;
+	//				context.step();
+	//				continue;
+	//			}
+	//			else {
+	//				auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
+	//				curr_ray = Ray(glm::fma(omega_i_reflect, kReflectionBias, surface.p), omega_i_reflect);
+	//				coef /= trace_p;
+	//				context.step();
+	//				continue;
+	//			}
+	//		}
+	//		else if (auto specular = boost::get<PerfectSpecularMaterial>(&surface.m)) {
+	//			auto omega_i_reflect = glm::reflect(-omega_o, surface.n);
+	//			curr_ray = Ray(glm::fma(omega_i_reflect, kReflectionBias, surface.p), omega_i_reflect);
+	//			coef /= trace_p;
+	//			context.step();
+	//			continue;
+	//		} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
+	//			implicit_contribution.color = coef * emissive->color / implicit_contribution.pdf / trace_p;
+
+	//			if (context.diffusion < glm::epsilon<double>()) {
+	//				return emissive->color;
+	//			}
+	//			break;
+	//		}
+	//	}
+
+	//	//printf("im: %.2f, ex: ", implicit_contribution.pdf);
+	//	//Vec3 color;
+	//	//for (int i = 0; i < explicit_contributions.size(); ++i) {
+	//	//	color += explicit_contributions[i].color;
+	//	//	printf("%.2f, ", explicit_contributions[i].pdf);
+	//	//}
+	//	//printf("\n");
+	//	// return glm::mix(color, implicit_contribution.color, 0.5);
+	//	if (explicit_contributions.empty()) {
+	//		return implicit_contribution.color;
+	//	}
+	//	if (implicit_contribution.pdf < glm::epsilon<double>()) {
+	//		return Vec3();
+	//	}
+
+	//	Vec3 imp_color = implicit_contribution.color / explicit_contributions.size();
+	//	Vec3 color;
+	//	for (int i = 0; i < explicit_contributions.size(); ++i) {
+	//		double ws = explicit_contributions[i].pdf + implicit_contribution.pdf;
+	//		Vec3 value = 
+	//			explicit_contributions[i].color * explicit_contributions[i].pdf
+	//			+
+	//			imp_color * implicit_contribution.pdf;
+	//		color += value / ws;
+	//	}
+	//	return color;
+	//}
+
+
 	//inline Vec3 radiance(const Ray &ray, const Scene &scene, EngineType &engine, const Context &context = Context()) {
 	//	auto intersection = intersect(ray, scene);
 	//	if (!intersection) {
@@ -655,16 +832,18 @@ void RayTracerApp::setup()
 	dragon.material = lc::RefractionMaterial(1.4);
 	_scene.objects.push_back(dragon);*/
 
-	auto light = lc::SphereObject(
+	static auto light = lc::SphereObject(
 		lc::Sphere(lc::Vec3(0.0, 20.0, 0.0), 5.0),
 		lc::EmissiveMaterial(lc::Vec3(10.0))
 	);
 	_scene.objects.push_back(light);
 
+	_scene.lights.push_back(&light);
+
 	// _scene.importances.push_back(lc::ImportantArea(spec.sphere));
 	// 
-	_scene.lights.push_back(lc::ImportantArea(light.sphere, light.object_id));
-	_scene.importances.push_back(lc::ImportantArea(grass.sphere, grass.object_id));
+	// _scene.lights.push_back(lc::ImportantArea(light.sphere, light.object_id));
+	// _scene.importances.push_back(lc::ImportantArea(grass.sphere, grass.object_id));
 }
 
 void RayTracerApp::mouseDown(MouseEvent event)
@@ -691,8 +870,31 @@ void RayTracerApp::draw()
 		_plane->draw();
 	}
 
+	static int step = 0;
+	lc::Xor engine(10);
+
+	for (int i = 0; i < step; ++i) {
+		engine();
+	}
+
+	lc::Path path;
 	if (_render == false) {
 		lc::draw_scene(_scene, wide, wide);
+
+		auto ray_view = _scene.camera.generate_ray(_buffer->_width * 0.5, _buffer->_height * 0.5, _buffer->_width, _buffer->_height);
+
+		gl::ScopedColor color(1.0, 0.5, 0.0);
+
+		auto ray = _scene.viewTransform.to_local_ray(ray_view);
+		path = lc::trace(ray, _scene, engine);
+
+		
+		if (path.intersections.empty() == false) {
+			gl::drawLine(ray.o, path.intersections[0].p);
+			for (int i = 0; i < path.intersections.size() - 1; ++i) {
+				gl::drawLine(path.intersections[i].p, path.intersections[i + 1].p);
+			}
+		}
 	}
 
 	const int aa = 2;
@@ -702,6 +904,9 @@ void RayTracerApp::draw()
 	ui::Text("samples: %d", _buffer->_iteration);
 	ui::Text("time: %.2f s", _renderTime);
 	ui::Text("rays per miliseconds: %.2f", aa * _buffer->_width * _buffer->_height * _buffer->_iteration * 0.001 / (_renderTime + 0.0001));
+	
+	ui::SliderInt("step [debug]", &step, 0, 100);
+	
 	ui::Checkbox("render", &_render);
 
 	if (_render) {
