@@ -6,6 +6,7 @@
 #include <boost/range.hpp>
 #include <boost/range/join.hpp>
 
+#include "constants.hpp"
 #include "random_engine.hpp"
 #include "transform.hpp"
 #include "camera.hpp"
@@ -13,11 +14,15 @@
 #include "material.hpp"
 
 namespace lc {
+	struct LightSurface {
+		Vec3 n;
+		Vec3 p;
+	};
 	class ILight {
 	public:
 		virtual ~ILight() {}
 		virtual EmissiveMaterial emissive_material() const = 0;
-		virtual Sample<Vec3> on_light(EngineType &e) const = 0;
+		virtual Sample<LightSurface> on_light(EngineType &e) const = 0;
 	};
 
 	struct SphereObject : public ILight {
@@ -26,9 +31,10 @@ namespace lc {
 		virtual EmissiveMaterial emissive_material() const {
 			return boost::get<EmissiveMaterial>(material);
 		}
-		virtual Sample<Vec3> on_light(EngineType &e) const {
-			Sample<Vec3> s;
-			s.value = sphere.center + generate_on_sphere(e) * sphere.radius;
+		virtual Sample<LightSurface> on_light(EngineType &e) const {
+			Sample<LightSurface> s;
+			s.value.p = sphere.center + generate_on_sphere(e) * sphere.radius;
+			s.value.n = glm::normalize(s.value.p - sphere.center);
 			s.pdf = 1.0 / (4.0 * glm::pi<double>() * sphere.radius * sphere.radius);
 			return s;
 		}
@@ -155,11 +161,11 @@ namespace lc {
 			:
 			scene.lights[engine() % scene.lights.size()];
 
-		Sample<Vec3> s = light->on_light(engine);
+		Sample<LightSurface> s = light->on_light(engine);
 
 		OnLight onLight;
 		onLight.emissive = light->emissive_material();
-		onLight.p = s.value;
+		onLight.p = s.value.p;
 		onLight.pdf = s.pdf;
 		return onLight;
 	}
@@ -169,19 +175,22 @@ namespace lc {
 		double pdf = 0.0;
 	};
 
-	//template <class E>
-	//DirectSample direct_sample(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine) {
-	//	Sample<Vec3> on_light = scene.lights.size() == 1 ?
-	//		scene.lights[0].sample(p, engine)
-	//		:
-	//		scene.lights[engine() % scene.lights.size()].sample(p, engine);
-	//	Vec3 direction = glm::normalize(on_light.value - p);
+	inline DirectSample direct_sample(const Scene &scene, const Vec3 &p, EngineType &engine) {
+		const ILight *light = scene.lights.size() == 1 ?
+			scene.lights[0]
+			:
+			scene.lights[engine() % scene.lights.size()];
 
-	//	DirectSample ds;
-	//	ds.pdf = on_light.pdf;
-	//	ds.ray = Ray(glm::fma(direction, kReflectionBias, p), direction);
-	//	return ds;
-	//}
+		// 表面積の確率密度を立体角の確率密度に変換する
+		Sample<LightSurface> s = light->on_light(engine);
+		Vec3 dir = glm::normalize(s.value.p - p);
+		double pdf = glm::distance2(p, s.value.p) * s.pdf / glm::max(glm::dot(s.value.n, dir), 0.00001);
+
+		DirectSample ds;
+		ds.pdf = pdf;
+		ds.ray = Ray(glm::fma(dir, kReflectionBias, p), dir);
+		return ds;
+	}
 
 	//template <class E>
 	//DirectSample important_object_sample(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine) {
