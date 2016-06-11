@@ -152,6 +152,7 @@ namespace lc {
 
 	struct OnLight {
 		Vec3 p;
+		Vec3 n;
 		double pdf = 0.0;
 		EmissiveMaterial emissive;
 	};
@@ -166,6 +167,7 @@ namespace lc {
 		OnLight onLight;
 		onLight.emissive = light->emissive_material();
 		onLight.p = s.value.p;
+		onLight.n = s.value.n;
 		onLight.pdf = s.pdf;
 		return onLight;
 	}
@@ -184,7 +186,7 @@ namespace lc {
 		// 表面積の確率密度を立体角の確率密度に変換する
 		Sample<LightSurface> s = light->on_light(engine);
 		Vec3 dir = glm::normalize(s.value.p - p);
-		double pdf = glm::distance2(p, s.value.p) * s.pdf / glm::max(glm::dot(s.value.n, dir), 0.00001);
+		double pdf = glm::distance2(p, s.value.p) * s.pdf / glm::max(glm::dot(s.value.n, dir), 0.0001);
 
 		DirectSample ds;
 		ds.pdf = pdf;

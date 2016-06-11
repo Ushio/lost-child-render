@@ -84,6 +84,19 @@ namespace lc {
 		}
 	};
 
+	inline bool visible(const Scene &scene, const Vec3 &p0, const Vec3 &p1) {
+		Vec3 d = p1 - p0;
+		double lengthSquared = glm::length2(d);
+		if (lengthSquared < 0.001) {
+			// 遮蔽していることにしたほうが都合がよいかも？
+			return false;
+		}
+		if (auto intersection = intersect(Ray(p0, d / glm::sqrt(lengthSquared)), scene)) {
+			return glm::distance2(intersection->surface.p, p1) < glm::epsilon<double>();
+		}
+		return false;
+	}
+
 	struct Path {
 		struct Node {
 			Vec3 omega_i;
@@ -99,29 +112,28 @@ namespace lc {
 		std::vector<Node> nodes;
 	};
 	
-	inline bool visible(const Scene &scene, const Vec3 &p0, const Vec3 &p1) {
-		Vec3 d = p1 - p0;
-		double lengthSquared = glm::length2(d);
-		if (lengthSquared < 0.0001) {
-			return true;
-		}
-		if (auto intersection = intersect(Ray(p0, d / glm::sqrt(lengthSquared)), scene)) {
-			return glm::distance2(intersection->surface.p, p1) < glm::epsilon<double>();
-		}
-		return false;
-	}
-
-	inline Path trace(const Ray &ray, const Scene &scene, EngineType &engine, bool is_light) {
+	inline Path trace(const Ray &ray, const Scene &scene, EngineType &engine, boost::optional<MicroSurface> light_surface) {
 		Ray curr_ray = ray;
-
 		Path path;
+		
+		// カメラトレーシングの場合は、直接は無視する（今回はピンホールカメラモデルなので）
+		// ライトトレーシングの場合は、直接を考慮にいれる
+		if (light_surface) {
+			Path::Node node;
+			node.surface = *light_surface;
+			node.omega_o = curr_ray.d;
+			path.nodes.push_back(node);
+		}
+
 		Vec3 coef(1.0);
 		int diffusion_count = 0;
-		for (int i = 0; i < 10; ++i) {
-			// 数字を小さくすると早めに終了するようになる
-			if (glm::pow(0.5, diffusion_count) < generate_continuous(engine)) {
-				break;
-			}
+		Vec3 diffusion(1.0);
+
+		for (int i = 0; i < 10 && diffusion_count < 2 ; ++i) {
+			double breaking = std::max(glm::max(coef.r, coef.g), coef.b);
+			//if (breaking < generate_continuous(engine)) {
+			//	break;
+			//}
 
 			auto intersection = intersect(curr_ray, scene);
 			if (!intersection) {
@@ -141,7 +153,7 @@ namespace lc {
 				double pdf = cos_sample.pdf;
 				Vec3 omega_o = -curr_ray.d;
 
-				if (is_light) {
+				if (light_surface) {
 					std::swap(omega_i, omega_o);
 				}
 
@@ -185,24 +197,77 @@ namespace lc {
 				curr_ray = Ray(glm::fma(omega_i_reflect, kReflectionBias, surface.p), omega_i_reflect);
 				continue;
 			} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
-				//if (is_light) {
-				//	break;
-				//}
-				//Path::Node node;
-				//node.omega_o = -curr_ray.d;
-				//node.surface = surface;
-				//path.nodes.push_back(node);
-				//break;
+				if (light_surface == boost::none && diffusion_count != 0) {
+					break;
+				}
+				Path::Node node;
+				node.omega_o = -curr_ray.d;
+				node.surface = surface;
+				path.nodes.push_back(node);
 				break;
 			}
+
+
 		}
 		return path;
 	}
 
-	inline Vec3 connect(const Path &camera_path, const Path &light_path, int camera_nodes, int light_nodes) {
+	inline Vec3 evaluate_bi_directional(const Path &camera_path, const Path &light_path, int camera_i, int light_i) {
+		// カメラパスの最後（接続点）
+		Path::Node camera_path_tail = camera_path.nodes[camera_i];
 
+		// ライトパスの頭（接続点）
+		Path::Node light_path_head = light_path.nodes[light_i];
 
+		Vec3 coef(1.0);
 
+		coef *= camera_path_tail.coef;
+		coef *= light_path_head.coef;
+
+		Vec3 connection_direction = light_path_head.surface.p - camera_path_tail.surface.p;
+		double lengthSquared = glm::length2(connection_direction);
+		connection_direction /= glm::sqrt(lengthSquared);
+
+		double geometry =
+			glm::abs(glm::dot(connection_direction, camera_path_tail.surface.n))
+			*
+			glm::abs(glm::dot(-connection_direction, light_path_head.surface.n))
+			/
+			lengthSquared;
+
+		if (lengthSquared < 0.00001) {
+			return Vec3();
+		}
+
+		coef *= geometry;
+
+		// 二つのBRDF関係を再計算
+		{
+			if (auto lambert = boost::get<LambertMaterial>(&camera_path_tail.surface.m)) {
+				auto surface = camera_path_tail.surface;
+				Vec3 omega_i = connection_direction;
+				Vec3 omega_o = camera_path_tail.omega_o;
+
+				double brdf = glm::one_over_pi<double>();
+				double cos_term = glm::max(glm::dot(surface.n, omega_i), 0.0); // マイナスがいるようだが、原因は不明
+				Vec3 this_coef = lambert->albedo * brdf * cos_term;
+				coef *= this_coef;
+			}
+		}
+
+		{
+			if (auto lambert = boost::get<LambertMaterial>(&light_path_head.surface.m)) {
+				auto surface = light_path_head.surface;
+				Vec3 omega_i = camera_path_tail.omega_i;
+				Vec3 omega_o = -connection_direction;
+
+				double brdf = glm::one_over_pi<double>();
+				double cos_term = glm::max(glm::dot(surface.n, omega_i), 0.0); // マイナスがいるようだが、原因は不明
+				Vec3 this_coef = lambert->albedo * brdf * cos_term;
+				coef *= this_coef;
+			}
+		}
+		return coef;
 	}
 	
 	inline double weight(int ci, int li) {
@@ -211,7 +276,7 @@ namespace lc {
 
 	inline Vec3 radiance(const Ray &camera_ray, const Scene &scene, EngineType &engine) {
 		// 通常のパストレーシング
-		Path camera_path = trace(camera_ray, scene, engine, false);
+		Path camera_path = trace(camera_ray, scene, engine, boost::none);
 
 		// ライトからのレイを生成する
 		OnLight light = on_light(scene, engine);
@@ -219,20 +284,27 @@ namespace lc {
 		Ray light_ray = Ray(light.p, generate_on_sphere(engine));
 
 		// ライトトレーシング
-		Path light_path = trace(light_ray, scene, engine, true);
+		MicroSurface lightSurface;
+		lightSurface.p = light.p;
+		lightSurface.m = light.emissive;
+		lightSurface.n = light.n;
+		Path light_path = trace(light_ray, scene, engine, lightSurface);
 
 		// そもそもカメラレイが衝突していない
 		if (camera_path.nodes.empty()) {
 			return Vec3();
 		}
 
-		// light.emissive.color
+		// そもそも最初がライトだった特殊ケース
+		if (auto emissive = boost::get<EmissiveMaterial>(&camera_path.nodes[0].surface.m)) {
+			return emissive->color;
+		}
 
-		// 
-		//struct Contribution {
-		//	Vec3 color;
-		//	double w = 
-		//};
+		double light_pdf = 1.0;
+		light_pdf *= light.pdf;
+
+		// 向きを決めるPDF
+		light_pdf *= (1.0 / (4.0 * glm::pi<double>()));
 
 		Vec3 color;
 		double weight_all = 0.0;
@@ -250,14 +322,21 @@ namespace lc {
 						Vec3 this_coef = lambert->albedo * brdf * cos_term;
 
 						double w = weight(ci, 0);
-						color += this_coef * emissive->color * camera_node.coef / direct.pdf * w;
-						weight_all += w;
+						//color += this_coef * emissive->color * camera_node.coef / direct.pdf * w;
+						//weight_all += w;
 					}
 				}
 			}
 			
 			for (int li = 0; li < light_path.nodes.size(); ++li) {
-
+				if (glm::dot(camera_path.nodes[ci].surface.n, light_path.nodes[li].surface.n) < 0.0) {
+					if (visible(scene, camera_path.nodes[ci].surface.p, light_path.nodes[li].surface.p)) {
+						Vec3 coef = evaluate_bi_directional(camera_path, light_path, ci, li);
+						double w = weight(ci, li);
+						color += coef * light.emissive.color * w / light_pdf;
+						weight_all += w;
+					}
+				}
 			}
 		}
 
@@ -408,7 +487,7 @@ namespace lc {
 				color *= aa_sample_inverse;
 
 				// TODO 対症療法すぎるだろうか
-				if (glm::all(glm::lessThan(color, Vec3(200.0)))) {
+				if (glm::all(glm::lessThan(color, Vec3(500.0)))) {
 					pixel.color += color;
 				}
 			}
