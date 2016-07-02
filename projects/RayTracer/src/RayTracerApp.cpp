@@ -124,12 +124,23 @@ namespace lc {
 			node.omega_o = curr_ray.d;
 			path.nodes.push_back(node);
 		}
+		//else {
+		//	MicroSurface m;
+		//	m.p = ray.o;
+		//	m.n = ray.d;
+		//	m.m = EmissiveMaterial();
+		//	Path::Node node;
+		//	node.surface = m;
+		//	node.omega_i = curr_ray.d;
+		//	path.nodes.push_back(node);
+		//}
 
 		Vec3 coef(1.0);
 		int diffusion_count = 0;
 		Vec3 diffusion(1.0);
 
-		for (int i = 0; i < 10 && diffusion_count < 2 ; ++i) {
+		int max_diffusion_count = light_surface ? 1 : 3;
+		for (int i = 0; i < 5 && diffusion_count < max_diffusion_count; ++i) {
 			double breaking = std::max(glm::max(coef.r, coef.g), coef.b);
 			//if (breaking < generate_continuous(engine)) {
 			//	break;
@@ -212,7 +223,7 @@ namespace lc {
 		return path;
 	}
 
-	inline Vec3 evaluate_bi_directional(const Path &camera_path, const Path &light_path, int camera_i, int light_i) {
+	inline Vec3 evaluate_bi_directional(const Path &camera_path, const Path &light_path, int camera_i, int light_i, double on_light_pdf) {
 		// カメラパスの最後（接続点）
 		Path::Node camera_path_tail = camera_path.nodes[camera_i];
 
@@ -229,9 +240,9 @@ namespace lc {
 		connection_direction /= glm::sqrt(lengthSquared);
 
 		double geometry =
-			glm::abs(glm::dot(connection_direction, camera_path_tail.surface.n))
+			glm::max(glm::dot(connection_direction, camera_path_tail.surface.n), 0.0001)
 			*
-			glm::abs(glm::dot(-connection_direction, light_path_head.surface.n))
+			glm::max(glm::dot(-connection_direction, light_path_head.surface.n), 0.0001)
 			/
 			lengthSquared;
 
@@ -267,6 +278,21 @@ namespace lc {
 				coef *= this_coef;
 			}
 		}
+
+		// light_path.nodes[0].surface.
+		//Vec3 light_p = light_path.nodes[0].surface.p;
+		//Vec3 light_n = light_path.nodes[0].surface.n;
+		//Vec3 direct_sample_p;
+		//if (light_i == 0) {
+		//	direct_sample_p = camera_path.nodes[camera_i].surface.p;
+		//}
+		//else {
+		//	direct_sample_p = light_path.nodes[light_i].surface.p;
+		//}
+		//Vec3 light_dir = glm::normalize(light_p - direct_sample_p);
+		//double light_pdf = glm::distance2(light_p, direct_sample_p) * on_light_pdf / glm::max(glm::dot(light_n, light_dir), 0.0001);
+		//coef /= light_pdf;
+
 		return coef;
 	}
 	
@@ -282,6 +308,14 @@ namespace lc {
 		OnLight light = on_light(scene, engine);
 		
 		Ray light_ray = Ray(light.p, generate_on_sphere(engine));
+
+		// TODO だいぶアドホック
+		if (0.0 < light_ray.d.y) {
+			light_ray.d.y = -light_ray.d.y;
+		}
+
+		light_ray.o = glm::fma(light_ray.d, kReflectionBias, light_ray.o);
+
 
 		// ライトトレーシング
 		MicroSurface lightSurface;
@@ -300,8 +334,10 @@ namespace lc {
 			return emissive->color;
 		}
 
+		// なんか単位に対するものが変な気がする
 		double light_pdf = 1.0;
 		light_pdf *= light.pdf;
+
 
 		// 向きを決めるPDF
 		light_pdf *= (1.0 / (4.0 * glm::pi<double>()));
@@ -321,7 +357,7 @@ namespace lc {
 						double cos_term = glm::max(glm::dot(camera_node.surface.n, omega_i), 0.0); // マイナスがいるようだが、原因は不明
 						Vec3 this_coef = lambert->albedo * brdf * cos_term;
 
-						double w = weight(ci, 0);
+						double w = weight(ci + 1, 0);
 						//color += this_coef * emissive->color * camera_node.coef / direct.pdf * w;
 						//weight_all += w;
 					}
@@ -329,19 +365,22 @@ namespace lc {
 			}
 			
 			for (int li = 0; li < light_path.nodes.size(); ++li) {
-				if (glm::dot(camera_path.nodes[ci].surface.n, light_path.nodes[li].surface.n) < 0.0) {
-					if (visible(scene, camera_path.nodes[ci].surface.p, light_path.nodes[li].surface.p)) {
-						Vec3 coef = evaluate_bi_directional(camera_path, light_path, ci, li);
-						double w = weight(ci, li);
-						color += coef * light.emissive.color * w / light_pdf;
-						weight_all += w;
-					}
+				auto a = camera_path.nodes[ci].surface.p;
+				auto b = light_path.nodes[li].surface.p;
+
+				// 高い分散が発生する原因はG項が距離が近すぎると爆発してしまうことにある
+				if (9.0 < glm::distance2(a, b) && visible(scene, a, b)) {
+					Vec3 coef = evaluate_bi_directional(camera_path, light_path, ci, li, light.pdf);
+					double w = weight(ci + 1, li + 1);
+					color += coef * light.emissive.color * w / light_pdf;
+					weight_all += w;
 				}
 			}
 		}
 
 		return weight_all <= glm::epsilon<double>() ? Vec3() : color / weight_all;
 	}
+
 	//inline Vec3 radiance(const Ray &camera_ray, const Scene &scene, EngineType &engine) {
 	//	// カメラトレーシング
 	//	Path from_camera = trace(camera_ray, scene, engine);
@@ -688,10 +727,14 @@ void RayTracerApp::setup()
 	dragon.material = lc::RefractionMaterial(1.4);
 	_scene.objects.push_back(dragon);*/
 
-	static auto light = lc::SphereObject(
-		lc::Sphere(lc::Vec3(0.0, 20.0, 0.0), 5.0),
-		lc::EmissiveMaterial(lc::Vec3(10.0))
-	);
+	//static auto light = lc::SphereObject(
+	//	lc::Sphere(lc::Vec3(0.0, 20.0, 0.0), 5.0),
+	//	lc::EmissiveMaterial(lc::Vec3(10.0))
+	//);
+	static auto light = lc::RectLight();
+	light.y = 24.0;
+	light.size = 5.0;
+	light.color = lc::Vec3(200.0);
 	_scene.objects.push_back(light);
 
 	_scene.lights.push_back(&light);

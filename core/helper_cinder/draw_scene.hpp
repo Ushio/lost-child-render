@@ -27,6 +27,9 @@ namespace lc {
 		//cinder::gl::drawSphere(o.sphere.center, o.sphere.radius, 15);
 		// NOP
 	}
+	inline void draw_object(const RectLight &o) {
+
+	}
 
 	struct DrawObjectVisitor : public boost::static_visitor<> {
 		template <class T>

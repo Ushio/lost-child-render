@@ -11,6 +11,7 @@
 #include "transform.hpp"
 #include "camera.hpp"
 #include "collision_sphere.hpp"
+#include "collision_plane.hpp"
 #include "material.hpp"
 
 namespace lc {
@@ -23,6 +24,28 @@ namespace lc {
 		virtual ~ILight() {}
 		virtual EmissiveMaterial emissive_material() const = 0;
 		virtual Sample<LightSurface> on_light(EngineType &e) const = 0;
+	};
+
+	struct RectLight : public ILight {
+		RectLight() {
+
+		}
+		virtual EmissiveMaterial emissive_material() const {
+			return EmissiveMaterial(color);
+		}
+		virtual Sample<LightSurface> on_light(EngineType &e) const {
+			Sample<LightSurface> ls;
+			ls.pdf = 1.0 / (size * size);
+			ls.value.p = Vec3(
+				generate_continuous(e, -size * 0.5, size * 0.5),
+				y,
+				generate_continuous(e, -size * 0.5, size * 0.5));
+			ls.value.n = Vec3(0.0, -1.0, 0.0);
+			return ls;
+		}
+		double size = 0.0;
+		double y = 0.0;
+		Vec3 color;
 	};
 
 	struct SphereObject : public ILight {
@@ -98,7 +121,7 @@ namespace lc {
 		boost::uuids::uuid object_id = boost::uuids::random_generator()();
 	};
 
-	typedef boost::variant<SphereObject, ConelBoxObject, TriangleMeshObject> SceneObject;
+	typedef boost::variant<SphereObject, ConelBoxObject, TriangleMeshObject, RectLight> SceneObject;
 
 	//struct ImportantArea {
 	//	ImportantArea() {}
@@ -183,10 +206,28 @@ namespace lc {
 			:
 			scene.lights[engine() % scene.lights.size()];
 
+
+		//double distanceSquared;
+		//Vec3 q;
+		//Vec3 qn;
+		//double area_pdf;
+		//do {
+		//	Sample<LightSurface> s = light->on_light(engine);
+		//	qn = s.value.n;
+		//	q = s.value.p;
+		//	area_pdf = s.pdf;
+		//	distanceSquared = glm::distance2(p, q);
+		//} while (distanceSquared < 0.1);
+
+		//Vec3 dir = glm::normalize(q - p);
+		//double pdf = distanceSquared * area_pdf / glm::max(glm::dot(qn, -dir), 0.0001);
+
 		// 表面積の確率密度を立体角の確率密度に変換する
 		Sample<LightSurface> s = light->on_light(engine);
 		Vec3 dir = glm::normalize(s.value.p - p);
-		double pdf = glm::distance2(p, s.value.p) * s.pdf / glm::max(glm::dot(s.value.n, dir), 0.0001);
+		double pdf = glm::distance2(p, s.value.p) * s.pdf / glm::abs(glm::dot(s.value.n, dir));
+		// double pdf = glm::distance2(p, s.value.p) * s.pdf / glm::max(glm::dot(s.value.n, -dir), 0.0001);
+
 
 		DirectSample ds;
 		ds.pdf = pdf;
@@ -350,20 +391,31 @@ namespace lc {
 						}
 					}
 				}
-				//if (auto intersection = intersect(ray, *c)) {
-				//	if (intersection->tmin < tmin) {
-				//		min_intersection = [ray, intersection]() {
-				//			MicroSurface m;
-				//			m.p = intersection->intersect_position(ray);
-				//			m.n = intersection->intersect_normal();
-				//			m.vn = m.n;
-				//			m.m = LambertMaterial(intersection->triangle.color);
-				//			m.isback = intersection->isback;
-				//			return m;
-				//		};
-				//		tmin = intersection->tmin;
-				//	}
-				//}
+			} else if (auto *r = boost::get<RectLight>(&scene.objects[i])) {
+				Plane plane = make_plane_pn(Vec3(0.0, r->y, 0.0), Vec3(0.0, -1.0, 0.0));
+				if (auto intersection = intersect(ray, plane)) {
+					auto p = intersection->intersect_position(ray);
+					if (-r->size * 0.5 < p.x && p.x < r->size * 0.5) {
+						if (-r->size * 0.5 < p.z && p.z < r->size * 0.5) {
+							if (intersection->tmin < tmin) {
+								min_intersection = [p, ray, intersection, i, r]() {
+									MicroSurface m;
+									m.p = p;
+									m.n = intersection->intersect_normal;
+									m.vn = m.n;
+									m.m = intersection->isback ? EmissiveMaterial(Vec3(0.0)) : r->emissive_material();
+									m.isback = intersection->isback;
+
+									MicroSurfaceIntersection msi;
+									msi.surface = m;
+									// msi.object_id = c->object_id;
+									return msi;
+								};
+								tmin = intersection->tmin;
+							}
+						}
+					}
+				}
 			}
 		}
 		if (tmin != std::numeric_limits<double>::max()) {
