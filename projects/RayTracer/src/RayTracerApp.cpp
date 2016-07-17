@@ -194,13 +194,16 @@ namespace lc {
 				curr_ray = Ray(glm::fma(omega_i_reflect, kReflectionBias, surface.p), omega_i_reflect);
 				continue;
 			} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
-				Path::Node node;
-				node.coef = coef;
-				node.pdf = pdf;
-				// node.omega_i = 存在しない
-				node.omega_o = -curr_ray.d;
-				node.surface = surface;
-				path.nodes.push_back(node);
+				if (glm::dot(surface.n, curr_ray.d) < 0.0) {
+					Path::Node node;
+					node.coef = coef;
+					node.pdf = pdf;
+					// node.omega_i = 存在しない
+					node.omega_o = -curr_ray.d;
+					node.surface = surface;
+					path.nodes.push_back(node);
+				}
+				
 				break;
 			}
 
@@ -328,17 +331,29 @@ namespace lc {
 		// 向きを決めるPDF
 		// light_pdf *= (1.0 / (4.0 * glm::pi<double>()));
 
-		Vec3 color;
-		double weight_all = 0.0;
+		// 暗黙的
+		//auto terminal_node = camera_path.nodes[camera_path.nodes.size() - 1];
+		//if (auto emissive = boost::get<EmissiveMaterial>(&terminal_node.surface.m)) {
+		//	return emissive->color * terminal_node.coef / terminal_node.pdf;
+		//}
+		//else {
+		//	return Vec3();
+		//}
 
-		/*
-		戦略1 = (nee1(pdf1) + nee2(pdf2) + nee3(pdf3))
-		戦略2 = emissive (pdf)
-		やっぱり１と２をMISで混ぜるためには、
-		emissiveを３で割ったあとそれぞれでブレンドする必要がある気がする
-		*/
+		Vec3 color;
+		
+
 		for (int ci = 0; ci < camera_path.nodes.size(); ++ci) {
-			// NEE
+			bool is_term = ci + 1 == camera_path.nodes.size();
+
+			// 暗黙的寄与
+			Vec3   implicit_contribution;
+			double implicit_pdf = 0.0;
+
+			// 明示的寄与
+			Vec3   explicit_contribution;
+			double explicit_pdf = 0.0;
+
 			Path::Node camera_node = camera_path.nodes[ci];
 			if (auto lambert = boost::get<LambertMaterial>(&camera_node.surface.m)) {
 				auto sample_ray = direct_sample_ray(scene, camera_node.surface.p, engine);
@@ -347,13 +362,51 @@ namespace lc {
 						double pdf = camera_node.pdf * sample_ray.pdf;
 						Vec3 omega_i = sample_ray.value.d;
 						double brdf = glm::one_over_pi<double>();
-						double cos_term = glm::max(glm::dot(camera_node.surface.n, omega_i), 0.0); // マイナスがいるようだが、原因は不明
+						double cos_term = glm::max(glm::dot(camera_node.surface.n, omega_i), 0.0);
 						Vec3 this_coef = lambert->albedo * brdf * cos_term;
-						color += this_coef * emissive->color * camera_node.coef / pdf;
+
+						explicit_contribution = this_coef * emissive->color * camera_node.coef / pdf;
+						explicit_pdf = pdf;
+
+						// 
+						// color += explicit_contribution;
 					}
 				}
 			}
+			if (is_term) {
+				if (auto emissive = boost::get<EmissiveMaterial>(&camera_node.surface.m)) {
+					implicit_contribution = emissive->color * camera_node.coef / camera_node.pdf;
+					implicit_pdf = camera_node.pdf;
+				}
+			}
+
+			double weight_all = 0.0;
+			Vec3 contribution;
+
+			contribution += implicit_contribution * implicit_pdf;
+			weight_all += implicit_pdf;
+
+			contribution += explicit_contribution * explicit_pdf;
+			weight_all += explicit_pdf;
+
+			if (0.0001 < weight_all) {
+				contribution /= weight_all;
+				color += contribution;
+			}
+
+			// MIS ビジュアライズ
+			//contribution += Vec3(1.0, 0.0, 0.0) * implicit_pdf;
+			//weight_all += implicit_pdf;
+
+			//contribution += Vec3(0.0, 1.0, 0.0) * explicit_pdf;
+			//weight_all += explicit_pdf;
+
+			//if (0.0001 < weight_all) {
+			//	contribution /= weight_all;
+			//	color += contribution;
+			//}
 			
+			// BDPT
 			//for (int li = 0; li < light_path.nodes.size(); ++li) {
 			//	auto a = camera_path.nodes[ci].surface.p;
 			//	auto b = light_path.nodes[li].surface.p;
@@ -367,6 +420,8 @@ namespace lc {
 			//	}
 			//}
 		}
+
+		
 
 		return color;
 		// return weight_all <= glm::epsilon<double>() ? Vec3() : color / weight_all;
@@ -718,14 +773,26 @@ void RayTracerApp::setup()
 	dragon.material = lc::RefractionMaterial(1.4);
 	_scene.objects.push_back(dragon);*/
 
+	// でかいライト
+	//{
+	//	auto light = lc::DiscLight();
+	//	light.disc = lc::make_disc(
+	//		lc::Vec3(0.0, 24.0, 0.0),
+	//		lc::Vec3(0.0, -1.0, 0.0),
+	//		10.0
+	//	);
+	//	light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
+	//	_scene.add(light);
+	//}
+
 	{
 		auto light = lc::DiscLight();
 		light.disc = lc::make_disc(
 			lc::Vec3(0.0, 24.0, 0.0),
 			lc::Vec3(0.0, -1.0, 0.0),
-			2.5
+			7
 		);
-		light.emissive = lc::EmissiveMaterial(lc::Vec3(200.0));
+		light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
 		_scene.add(light);
 	}
 	{
@@ -735,7 +802,7 @@ void RayTracerApp::setup()
 			glm::normalize(lc::Vec3(-1.0, -1.0, 0.0)),
 			5
 		);
-		light.emissive = lc::EmissiveMaterial(lc::Vec3(60.0));
+		light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
 		_scene.add(light);
 	}
 	_scene.finalize();
