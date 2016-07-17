@@ -16,46 +16,73 @@
 #include "material.hpp"
 
 namespace lc {
-	struct LightSurface {
-		Vec3 n;
+	//struct LightSurface {
+	//	Vec3 n;
+	//	Vec3 p;
+	//};
+	//class ILight {
+	//public:
+	//	virtual ~ILight() {}
+	//	virtual EmissiveMaterial emissive_material() const = 0;
+	//	virtual Sample<LightSurface> on_light(EngineType &e) const = 0;
+	//};
+
+	//struct RectLight : public ILight {
+	//	RectLight() {
+
+	//	}
+	//	virtual EmissiveMaterial emissive_material() const {
+	//		return EmissiveMaterial(color);
+	//	}
+	//	virtual Sample<LightSurface> on_light(EngineType &e) const {
+	//		Sample<LightSurface> ls;
+	//		ls.pdf = 1.0 / (size * size);
+	//		ls.value.p = Vec3(
+	//			generate_continuous(e, -size * 0.5, size * 0.5),
+	//			y,
+	//			generate_continuous(e, -size * 0.5, size * 0.5));
+	//		ls.value.n = Vec3(0.0, -1.0, 0.0);
+	//		return ls;
+	//	}
+	//	double size = 0.0;
+	//	double y = 0.0;
+	//	Vec3 color;
+	//};
+
+	struct OnLight {
 		Vec3 p;
+		Vec3 n;
+		EmissiveMaterial emissive;
 	};
 	class ILight {
 	public:
 		virtual ~ILight() {}
-		virtual EmissiveMaterial emissive_material() const = 0;
-		virtual Sample<LightSurface> on_light(EngineType &e) const = 0;
+		virtual Sample<OnLight> sample(EngineType &e) const = 0;
 	};
 
-	struct RectLight : public ILight {
-		RectLight() {
-
-		}
-		virtual EmissiveMaterial emissive_material() const {
-			return EmissiveMaterial(color);
-		}
-		virtual Sample<LightSurface> on_light(EngineType &e) const {
-			Sample<LightSurface> ls;
-			ls.pdf = 1.0 / (size * size);
-			ls.value.p = Vec3(
-				generate_continuous(e, -size * 0.5, size * 0.5),
-				y,
-				generate_continuous(e, -size * 0.5, size * 0.5));
-			ls.value.n = Vec3(0.0, -1.0, 0.0);
-			return ls;
-		}
-		double size = 0.0;
-		double y = 0.0;
-		Vec3 color;
-	};
-
-	struct DiscLight {
+	struct DiscLight : public ILight {
 		DiscLight() {
+
 		}
 
+		virtual Sample<OnLight> sample(EngineType &e) const {
+			HemisphereTransform hemisphereTransform(disc.plane.n);
+			double r_sqrt = glm::sqrt(generate_continuous(e, 0.0, disc.radius));
+			double theta = generate_continuous(e, 0.0, glm::two_pi<double>());
+			double x = r_sqrt * glm::cos(theta);
+			double y = r_sqrt * glm::sin(theta);
+			auto p = disc.origin + hemisphereTransform.transform(Vec3(x, 0.0, y));
 
-		Disc disk;
-		EmissiveMaterial material;
+			Sample<OnLight> s;
+			s.pdf = 1.0 / (glm::pi<double>() * disc.radius * disc.radius);
+			s.value.p = p;
+			s.value.n = disc.plane.n;
+			s.value.emissive = emissive;
+			return s;
+		}
+
+		Disc disc;
+		EmissiveMaterial emissive;
 	};
 
 	struct SphereObject {
@@ -116,53 +143,57 @@ namespace lc {
 		std::vector<ColorTriangle> triangles;
 	};
 
-	typedef boost::variant<SphereObject, ConelBoxObject, TriangleMeshObject, RectLight> SceneObject;
+	typedef boost::variant<SphereObject, ConelBoxObject, TriangleMeshObject, DiscLight> SceneObject;
 
 	struct Scene {
 		Transform viewTransform;
 		Camera camera;
+
+		void add(SceneObject object) {
+			objects.push_back(object);
+		}
+
+		void finalize() {
+			lights.clear();
+			for (size_t i = 0; i < objects.size(); ++i) {
+				if (auto *d = boost::get<DiscLight>(&objects[i])) {
+					lights.push_back(d);
+				}
+			}
+		}
+
 		std::vector<SceneObject> objects;
-
 		std::vector<ILight *> lights;
-
-		//// 直接サンプリング
-		//std::vector<ImportantArea> lights;
-		//std::vector<ImportantArea> importances;
 	};
 
-	struct OnLight {
-		Vec3 p;
-		Vec3 n;
-		double pdf = 0.0;
-		EmissiveMaterial emissive;
-	};
-	OnLight on_light(const Scene &scene, EngineType &engine) {
+
+	//Sample<OnLight> on_light(const Scene &scene, EngineType &engine) {
+	//	const ILight *light = scene.lights.size() == 1 ?
+	//		scene.lights[0]
+	//		:
+	//		scene.lights[engine() % scene.lights.size()];
+
+	//	Sample<OnLight> s = light->sample(engine);
+	//	s.pdf /= scene.lights.size();
+	//	return s;
+	//}
+
+	//struct DirectSample {
+	//	Ray ray;
+	//	double pdf = 0.0;
+	//};
+
+	/*
+	直接サンプルするレイを生成
+	pdfは立体角尺度
+	*/
+	inline Sample<Ray> direct_sample_ray(const Scene &scene, const Vec3 &p, EngineType &engine) {
 		const ILight *light = scene.lights.size() == 1 ?
 			scene.lights[0]
 			:
 			scene.lights[engine() % scene.lights.size()];
 
-		Sample<LightSurface> s = light->on_light(engine);
-
-		OnLight onLight;
-		onLight.emissive = light->emissive_material();
-		onLight.p = s.value.p;
-		onLight.n = s.value.n;
-		onLight.pdf = s.pdf;
-		return onLight;
-	}
-
-	struct DirectSample {
-		Ray ray;
-		double pdf = 0.0;
-	};
-
-	inline DirectSample direct_sample(const Scene &scene, const Vec3 &p, EngineType &engine) {
-		const ILight *light = scene.lights.size() == 1 ?
-			scene.lights[0]
-			:
-			scene.lights[engine() % scene.lights.size()];
-
+		double selection_pdf = 1.0 / scene.lights.size();
 
 		//double distanceSquared;
 		//Vec3 q;
@@ -180,16 +211,14 @@ namespace lc {
 		//double pdf = distanceSquared * area_pdf / glm::max(glm::dot(qn, -dir), 0.0001);
 
 		// 表面積の確率密度を立体角の確率密度に変換する
-		Sample<LightSurface> s = light->on_light(engine);
+		Sample<OnLight> s = light->sample(engine);
 		Vec3 dir = glm::normalize(s.value.p - p);
 		double pdf = glm::distance2(p, s.value.p) * s.pdf / glm::abs(glm::dot(s.value.n, dir));
-		// double pdf = glm::distance2(p, s.value.p) * s.pdf / glm::max(glm::dot(s.value.n, -dir), 0.0001);
 
-
-		DirectSample ds;
-		ds.pdf = pdf;
-		ds.ray = Ray(glm::fma(dir, kReflectionBias, p), dir);
-		return ds;
+		Sample<Ray> sr;
+		sr.pdf = pdf * selection_pdf;
+		sr.value = Ray(glm::fma(dir, kReflectionBias, p), dir);
+		return sr;
 	}
 
 
@@ -287,8 +316,25 @@ namespace lc {
 						}
 					}
 				}
-			} else if (auto *r = boost::get<RectLight>(&scene.objects[i])) {
-				Plane plane = make_plane_pn(Vec3(0.0, r->y, 0.0), Vec3(0.0, -1.0, 0.0));
+			} else if (auto *d = boost::get<DiscLight>(&scene.objects[i])) {
+				if (auto intersection = intersect(ray, d->disc)) {
+					if (intersection->tmin < tmin) {
+						min_intersection = [ray, intersection, d]() {
+							MicroSurface m;
+							m.p = intersection->intersect_position(ray);
+							m.n = intersection->intersect_normal;
+							m.vn = m.n;
+							m.m = intersection->isback ? EmissiveMaterial(Vec3(0.0)) : d->emissive;
+							m.isback = intersection->isback;
+
+							MicroSurfaceIntersection msi;
+							msi.surface = m;
+							return msi;
+						};
+						tmin = intersection->tmin;
+					}
+				}
+				/*Plane plane = make_plane_pn(Vec3(0.0, r->y, 0.0), Vec3(0.0, -1.0, 0.0));
 				if (auto intersection = intersect(ray, plane)) {
 					auto p = intersection->intersect_position(ray);
 					if (-r->size * 0.5 < p.x && p.x < r->size * 0.5) {
@@ -310,7 +356,7 @@ namespace lc {
 							}
 						}
 					}
-				}
+				}*/
 			}
 		}
 		if (tmin != std::numeric_limits<double>::max()) {

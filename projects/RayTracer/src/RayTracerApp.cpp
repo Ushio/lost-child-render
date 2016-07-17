@@ -305,24 +305,24 @@ namespace lc {
 		Path camera_path = trace(camera_ray, scene, engine, boost::none);
 
 		// ライトからのレイを生成する
-		OnLight light = on_light(scene, engine);
+		// OnLight light = on_light(scene, engine);
 		
-		Ray light_ray = Ray(light.p, generate_on_sphere(engine));
+		// Ray light_ray = Ray(light.p, generate_on_sphere(engine));
 
 		// TODO だいぶアドホック
-		if (0.0 < light_ray.d.y) {
-			light_ray.d.y = -light_ray.d.y;
-		}
+		//if (0.0 < light_ray.d.y) {
+		//	light_ray.d.y = -light_ray.d.y;
+		//}
 
-		light_ray.o = glm::fma(light_ray.d, kReflectionBias, light_ray.o);
+		//light_ray.o = glm::fma(light_ray.d, kReflectionBias, light_ray.o);
 
 
 		// ライトトレーシング
-		MicroSurface lightSurface;
+		/*MicroSurface lightSurface;
 		lightSurface.p = light.p;
 		lightSurface.m = light.emissive;
 		lightSurface.n = light.n;
-		Path light_path = trace(light_ray, scene, engine, lightSurface);
+		Path light_path = trace(light_ray, scene, engine, lightSurface);*/
 
 		// そもそもカメラレイが衝突していない
 		if (camera_path.nodes.empty()) {
@@ -335,12 +335,12 @@ namespace lc {
 		}
 
 		// なんか単位に対するものが変な気がする
-		double light_pdf = 1.0;
-		light_pdf *= light.pdf;
+		//double light_pdf = 1.0;
+		//light_pdf *= light.pdf;
 
 
 		// 向きを決めるPDF
-		light_pdf *= (1.0 / (4.0 * glm::pi<double>()));
+		// light_pdf *= (1.0 / (4.0 * glm::pi<double>()));
 
 		Vec3 color;
 		double weight_all = 0.0;
@@ -355,14 +355,15 @@ namespace lc {
 			// NEE
 			Path::Node camera_node = camera_path.nodes[ci];
 			if (auto lambert = boost::get<LambertMaterial>(&camera_node.surface.m)) {
-				auto direct = direct_sample(scene, camera_node.surface.p, engine);
-				if (auto direct_intersect = intersect(direct.ray, scene)) {
+				auto sample_ray = direct_sample_ray(scene, camera_node.surface.p, engine);
+				if (auto direct_intersect = intersect(sample_ray.value, scene)) {
 					if (auto emissive = boost::get<EmissiveMaterial>(&direct_intersect->surface.m)) {
-						Vec3 omega_i = glm::normalize(light.p - camera_node.surface.p);
+						// Vec3 omega_i = glm::normalize(light.p - camera_node.surface.p);
+						Vec3 omega_i = sample_ray.value.d;
 						double brdf = glm::one_over_pi<double>();
 						double cos_term = glm::max(glm::dot(camera_node.surface.n, omega_i), 0.0); // マイナスがいるようだが、原因は不明
 						Vec3 this_coef = lambert->albedo * brdf * cos_term;
-						color += this_coef * emissive->color * camera_node.coef / direct.pdf;
+						color += this_coef * emissive->color * camera_node.coef / sample_ray.pdf;
 	/*					double w = weight(ci + 1, 0);
 						color += this_coef * emissive->color * camera_node.coef / direct.pdf * w;
 						weight_all += w;*/
@@ -688,7 +689,7 @@ void RayTracerApp::setup()
 	_scene.camera = lc::Camera(camera_settings);
 	_scene.viewTransform = lc::Transform(glm::lookAt(eye, look_at, up));
 
-	_scene.objects.push_back(lc::ConelBoxObject(50.0));
+	_scene.add(lc::ConelBoxObject(50.0));
 	//_scene.objects.push_back(lc::SphereObject(
 	//	lc::Sphere(lc::Vec3(0.0, -15, 0.0), 10.0),
 	//	lc::LambertMaterial(lc::Vec3(1.0))
@@ -704,13 +705,13 @@ void RayTracerApp::setup()
 		lc::Sphere(lc::Vec3(-10.0, -15, -10.0), 10.0),
 		lc::PerfectSpecularMaterial()
 	);
-	_scene.objects.push_back(spec);
+	_scene.add(spec);
 
 	auto grass = lc::SphereObject(
 		lc::Sphere(lc::Vec3(10.0, -15, 10.0), 10.0),
 		lc::RefractionMaterial(1.4)
 	);
-	_scene.objects.push_back(grass);
+	_scene.add(grass);
 
 
 	//cinder::ObjLoader loader(loadAsset("dragon.obj"));
@@ -738,13 +739,33 @@ void RayTracerApp::setup()
 	//	lc::Sphere(lc::Vec3(0.0, 20.0, 0.0), 5.0),
 	//	lc::EmissiveMaterial(lc::Vec3(10.0))
 	//);
-	static auto light = lc::RectLight();
-	light.y = 24.0;
-	light.size = 5.0;
-	light.color = lc::Vec3(200.0);
-	_scene.objects.push_back(light);
+	//static auto light = lc::RectLight();
+	//light.y = 24.0;
+	//light.size = 5.0;
+	//light.color = lc::Vec3(200.0);
 
-	_scene.lights.push_back(&light);
+	{
+		auto light = lc::DiscLight();
+		light.disc = lc::make_disc(
+			lc::Vec3(0.0, 24.0, 0.0),
+			lc::Vec3(0.0, -1.0, 0.0),
+			2.5
+		);
+		light.emissive = lc::EmissiveMaterial(lc::Vec3(200.0));
+		_scene.add(light);
+	}
+	{
+		auto light = lc::DiscLight();
+		light.disc = lc::make_disc(
+			lc::Vec3(20.0f, 10.0, 0.0),
+			glm::normalize(lc::Vec3(-1.0, -1.0, 0.0)),
+			5
+		);
+		light.emissive = lc::EmissiveMaterial(lc::Vec3(60.0));
+		_scene.add(light);
+	}
+	_scene.finalize();
+
 
 	// _scene.importances.push_back(lc::ImportantArea(spec.sphere));
 	// 

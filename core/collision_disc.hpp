@@ -13,7 +13,7 @@ namespace lc {
 	p: 平面上の点
 	n: 法線, 正規化されていなければならない
 	*/
-	inline Disc make_disk(Vec3 p, Vec3 n, double radius) {
+	inline Disc make_disc(Vec3 p, Vec3 n, double radius) {
 		Disc disc;
 		disc.plane = make_plane_pn(p, n);
 		disc.origin = p;
