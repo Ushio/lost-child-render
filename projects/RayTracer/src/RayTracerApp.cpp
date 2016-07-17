@@ -102,11 +102,15 @@ namespace lc {
 			Vec3 omega_i;
 			Vec3 omega_o;
 
-			// ここまでのパスを活用する場合の係数全部入り
-			// ここ自身のBRDFなどは考慮に入れられていない
-			// なぜなら結合の際に方向が変わってしまうため
+			// ここまでのパスを活用する場合の係数
+			// 注意: ここ自身の係数は入っていない
+			// なぜなら、結合やNEEで係数が変化するため、パスを使う側でそこは計算する
 			Vec3 coef = Vec3(1.0);
 
+			// ここまでのパスを活用する場合の確率密度
+			// 注意: ここ自身の確率密度は入っていない
+			// なぜなら、結合やNEEで係数が変化するため、パスを使う側でそこは計算する
+			double pdf = 1.0;
 
 			MicroSurface surface;
 		};
@@ -118,6 +122,7 @@ namespace lc {
 		Path path;
 
 		Vec3 coef(1.0);
+		double pdf = 1.0;
 		int diffusion_count = 0;
 		Vec3 diffusion(1.0);
 
@@ -140,24 +145,27 @@ namespace lc {
 
 				HemisphereTransform hemisphereTransform(surface.n);
 
-				// BRDF 
 				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
 				Vec3 omega_i = hemisphereTransform.transform(cos_sample.value);
-				double pdf = cos_sample.pdf;
 				Vec3 omega_o = -curr_ray.d;
 
-				double brdf = glm::one_over_pi<double>();
-				double cos_term = glm::max(glm::dot(surface.n, omega_i), 0.0);
-				Vec3 this_coef = lambert->albedo * brdf * cos_term / pdf;
+				double this_pdf = cos_sample.pdf;
 
 				Path::Node node;
 				node.coef = coef;
+				node.pdf = pdf;
 				node.surface = surface;
 				node.omega_i = omega_i;
 				node.omega_o = omega_o;
 				path.nodes.push_back(node);
 
+				// BRDF 
+				double brdf = glm::one_over_pi<double>();
+				double cos_term = glm::max(glm::dot(surface.n, omega_i), 0.0);
+				Vec3 this_coef = lambert->albedo * brdf * cos_term;
+
 				coef *= this_coef;
+				pdf *= this_pdf;
 
 				curr_ray = Ray(glm::fma(omega_o, kReflectionBias, surface.p), omega_i);
 				continue;
@@ -187,6 +195,9 @@ namespace lc {
 				continue;
 			} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
 				Path::Node node;
+				node.coef = coef;
+				node.pdf = pdf;
+				// node.omega_i = 存在しない
 				node.omega_o = -curr_ray.d;
 				node.surface = surface;
 				path.nodes.push_back(node);
@@ -333,15 +344,12 @@ namespace lc {
 				auto sample_ray = direct_sample_ray(scene, camera_node.surface.p, engine);
 				if (auto direct_intersect = intersect(sample_ray.value, scene)) {
 					if (auto emissive = boost::get<EmissiveMaterial>(&direct_intersect->surface.m)) {
-						// Vec3 omega_i = glm::normalize(light.p - camera_node.surface.p);
+						double pdf = camera_node.pdf * sample_ray.pdf;
 						Vec3 omega_i = sample_ray.value.d;
 						double brdf = glm::one_over_pi<double>();
 						double cos_term = glm::max(glm::dot(camera_node.surface.n, omega_i), 0.0); // マイナスがいるようだが、原因は不明
 						Vec3 this_coef = lambert->albedo * brdf * cos_term;
-						color += this_coef * emissive->color * camera_node.coef / sample_ray.pdf;
-	/*					double w = weight(ci + 1, 0);
-						color += this_coef * emissive->color * camera_node.coef / direct.pdf * w;
-						weight_all += w;*/
+						color += this_coef * emissive->color * camera_node.coef / pdf;
 					}
 				}
 			}
