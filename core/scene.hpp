@@ -12,6 +12,7 @@
 #include "camera.hpp"
 #include "collision_sphere.hpp"
 #include "collision_plane.hpp"
+#include "collision_disc.hpp"
 #include "material.hpp"
 
 namespace lc {
@@ -48,30 +49,25 @@ namespace lc {
 		Vec3 color;
 	};
 
-	struct SphereObject : public ILight {
+	struct DiscLight {
+		DiscLight() {
+		}
+
+
+		Disc disk;
+		EmissiveMaterial material;
+	};
+
+	struct SphereObject {
 		SphereObject(const Sphere &s, const Material &m) :sphere(s), material(m) {}
-
-		virtual EmissiveMaterial emissive_material() const {
-			return boost::get<EmissiveMaterial>(material);
-		}
-		virtual Sample<LightSurface> on_light(EngineType &e) const {
-			Sample<LightSurface> s;
-			s.value.p = sphere.center + generate_on_sphere(e) * sphere.radius;
-			s.value.n = glm::normalize(s.value.p - sphere.center);
-			s.pdf = 1.0 / (4.0 * glm::pi<double>() * sphere.radius * sphere.radius);
-			return s;
-		}
-
 		Sphere sphere;
 		Material material;
-		boost::uuids::uuid object_id = boost::uuids::random_generator()();
 	};
 
 	struct TriangleMeshObject {
 		BVH bvh;
 		Material material;
 		Transform transform;
-		boost::uuids::uuid object_id = boost::uuids::random_generator()();
 	};
 
 	struct ConelBoxObject {
@@ -118,48 +114,9 @@ namespace lc {
 			Vec3 color;
 		};
 		std::vector<ColorTriangle> triangles;
-		boost::uuids::uuid object_id = boost::uuids::random_generator()();
 	};
 
 	typedef boost::variant<SphereObject, ConelBoxObject, TriangleMeshObject, RectLight> SceneObject;
-
-	//struct ImportantArea {
-	//	ImportantArea() {}
-	//	ImportantArea(const Sphere &sphere, const boost::uuids::uuid &uuid) :shape(sphere), object_id(uuid) {}
-
-	//	Sphere shape;
-	//	boost::uuids::uuid object_id;
-	//	// double importance = 1.0;
-
-	//	// boost::variant<Sphere, AABB> shape;
-
-	//	/* p が重点サンプルの基準点 */
-	//	template <class E>
-	//	Sample<Vec3> sample(const Vec3 &p, RandomEngine<E> &engine) const {
-	//		const double eps = 0.01;
-	//		const double pdf_min = 0.01;
-
-	//		double distance_pq;
-	//		Vec3 q;
-	//		Vec3 qn;
-	//		do {
-	//			q = shape.center + generate_on_sphere(engine) * shape.radius;
-	//			qn = glm::normalize(q - shape.center);
-	//			distance_pq = glm::distance(p, q);
-	//		} while (distance_pq < eps);
-
-	//		// PDFが小さい => 面積が大きい, 角度がついていない, 距離が短い
-	//		Sample<Vec3> s;
-	//		s.value = q;
-	//		double A = 4.0 * glm::pi<double>() * shape.radius * shape.radius;
-	//		double cos_alpha = glm::max(glm::abs(glm::dot(qn, (p - q) / distance_pq)), eps); // あまり小さくなりすぎないように
-	//		s.pdf = distance_pq * distance_pq / (A * cos_alpha);
-	//		s.pdf = glm::max(s.pdf, pdf_min);
-	//		return s;
-	//	}
-	//};
-
-	
 
 	struct Scene {
 		Transform viewTransform;
@@ -235,65 +192,7 @@ namespace lc {
 		return ds;
 	}
 
-	//template <class E>
-	//DirectSample important_object_sample(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine) {
-	//	Sample<Vec3> on_importance = scene.importances.size() == 1 ?
-	//		scene.importances[0].sample(p, engine)
-	//		:
-	//		scene.importances[engine() % scene.importances.size()].sample(p, engine);
-	//	Vec3 direction = glm::normalize(on_importance.value - p);
 
-	//	DirectSample ds;
-	//	ds.pdf = on_importance.pdf;
-	//	ds.ray = Ray(glm::fma(direction, kReflectionBias, p), direction);
-	//	return ds;
-	//}
-
-	//template <class E>
-	//boost::optional<Sample<Vec3>> sample_important_position(const Scene &scene, const Vec3 &p, RandomEngine<E> &engine, double diffusion) {
-	//	if (scene.lights.empty() && scene.importances.empty()) {
-	//		return boost::none;
-	//	}
-
-	//	// モジュロバイアスはNが十分に小さいので無視する
-	//	if (scene.importances.empty() && scene.lights.empty() == false) {
-	//		return scene.lights.size() == 1 ?
-	//			scene.lights[0].sample(p, engine)
-	//			:
-	//			scene.lights[engine() % scene.lights.size()].sample(p, engine);
-	//	}
-	//	if (scene.importances.empty() == false && scene.lights.empty()) {
-	//		return scene.importances.size() == 1 ?
-	//			scene.importances[0].sample(p, engine)
-	//			:
-	//			scene.importances[engine() % scene.importances.size()].sample(p, engine);
-	//	}
-
-	//	// 探索が深ければ、ライトサンプリングの確率は上げたほうがいい
-	//	bool is_light_sampleing = 0.25 * glm::pow(0.25, diffusion) < generate_continuous(engine);
-	//	if (is_light_sampleing) {
-	//		return scene.lights.size() == 1 ?
-	//			scene.lights[0].sample(p, engine)
-	//			:
-	//			scene.lights[engine() % scene.lights.size()].sample(p, engine);
-	//	}
-	//	return scene.importances.size() == 1 ?
-	//		scene.importances[0].sample(p, engine)
-	//		:
-	//		scene.importances[engine() % scene.importances.size()].sample(p, engine);
-	//}
-/*
-	inline bool is_important(const Scene &scene, const boost::uuids::uuid &object_id) {
-		bool important = false;
-		for (const ImportantArea &area : boost::join(scene.lights, scene.importances)) {
-			if (area.object_id == object_id) {
-				important = true;
-				break;
-			}
-		}
-		return important;
-	}
-*/
 	template <class T, int MAX_SIZE>
 	struct LazyValue {
 		LazyValue() {}
@@ -344,7 +243,6 @@ namespace lc {
 
 	struct MicroSurfaceIntersection {
 		MicroSurface surface;
-		boost::uuids::uuid object_id;
 	};
 	inline boost::optional<MicroSurfaceIntersection> intersect(const Ray &ray, const Scene &scene) {
 		double tmin = std::numeric_limits<double>::max();
@@ -364,7 +262,6 @@ namespace lc {
 
 							MicroSurfaceIntersection msi;
 							msi.surface = m;
-							msi.object_id = s->object_id;
 							return msi;
 						};
 						tmin = intersection->tmin;
@@ -384,7 +281,6 @@ namespace lc {
 
 								MicroSurfaceIntersection msi;
 								msi.surface = m;
-								msi.object_id = c->object_id;
 								return msi;
 							};
 							tmin = intersection->tmin;
@@ -408,7 +304,6 @@ namespace lc {
 
 									MicroSurfaceIntersection msi;
 									msi.surface = m;
-									// msi.object_id = c->object_id;
 									return msi;
 								};
 								tmin = intersection->tmin;

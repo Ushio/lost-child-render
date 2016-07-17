@@ -345,6 +345,12 @@ namespace lc {
 		Vec3 color;
 		double weight_all = 0.0;
 
+		/*
+		戦略1 = (nee1(pdf1) + nee2(pdf2) + nee3(pdf3))
+		戦略2 = emissive (pdf)
+		やっぱり１と２をMISで混ぜるためには、
+		emissiveを３で割ったあとそれぞれでブレンドする必要がある気がする
+		*/
 		for (int ci = 0; ci < camera_path.nodes.size(); ++ci) {
 			// NEE
 			Path::Node camera_node = camera_path.nodes[ci];
@@ -356,29 +362,30 @@ namespace lc {
 						double brdf = glm::one_over_pi<double>();
 						double cos_term = glm::max(glm::dot(camera_node.surface.n, omega_i), 0.0); // マイナスがいるようだが、原因は不明
 						Vec3 this_coef = lambert->albedo * brdf * cos_term;
-
-						double w = weight(ci + 1, 0);
-						//color += this_coef * emissive->color * camera_node.coef / direct.pdf * w;
-						//weight_all += w;
+						color += this_coef * emissive->color * camera_node.coef / direct.pdf;
+	/*					double w = weight(ci + 1, 0);
+						color += this_coef * emissive->color * camera_node.coef / direct.pdf * w;
+						weight_all += w;*/
 					}
 				}
 			}
 			
-			for (int li = 0; li < light_path.nodes.size(); ++li) {
-				auto a = camera_path.nodes[ci].surface.p;
-				auto b = light_path.nodes[li].surface.p;
+			//for (int li = 0; li < light_path.nodes.size(); ++li) {
+			//	auto a = camera_path.nodes[ci].surface.p;
+			//	auto b = light_path.nodes[li].surface.p;
 
-				// 高い分散が発生する原因はG項が距離が近すぎると爆発してしまうことにある
-				if (9.0 < glm::distance2(a, b) && visible(scene, a, b)) {
-					Vec3 coef = evaluate_bi_directional(camera_path, light_path, ci, li, light.pdf);
-					double w = weight(ci + 1, li + 1);
-					color += coef * light.emissive.color * w / light_pdf;
-					weight_all += w;
-				}
-			}
+			//	// 高い分散が発生する原因はG項が距離が近すぎると爆発してしまうことにある
+			//	if (9.0 < glm::distance2(a, b) && visible(scene, a, b)) {
+			//		Vec3 coef = evaluate_bi_directional(camera_path, light_path, ci, li, light.pdf);
+			//		double w = weight(ci + 1, li + 1);
+			//		color += coef * light.emissive.color * w / light_pdf;
+			//		weight_all += w;
+			//	}
+			//}
 		}
 
-		return weight_all <= glm::epsilon<double>() ? Vec3() : color / weight_all;
+		return color;
+		// return weight_all <= glm::epsilon<double>() ? Vec3() : color / weight_all;
 	}
 
 	//inline Vec3 radiance(const Ray &camera_ray, const Scene &scene, EngineType &engine) {
