@@ -383,11 +383,12 @@ namespace lc {
 			double weight_all = 0.0;
 			Vec3 contribution;
 
-			contribution += implicit_contribution * implicit_pdf;
-			weight_all += implicit_pdf;
+			// MIS
+			contribution += implicit_contribution * implicit_pdf * implicit_pdf;
+			weight_all += implicit_pdf * implicit_pdf;
 
-			contribution += explicit_contribution * explicit_pdf;
-			weight_all += explicit_pdf;
+			contribution += explicit_contribution * explicit_pdf * explicit_pdf;
+			weight_all += explicit_pdf * explicit_pdf;
 
 			if (0.0001 < weight_all) {
 				contribution /= weight_all;
@@ -395,11 +396,11 @@ namespace lc {
 			}
 
 			// MIS ビジュアライズ
-			//contribution += Vec3(1.0, 0.0, 0.0) * implicit_pdf;
-			//weight_all += implicit_pdf;
+			//contribution += Vec3(1.0, 0.0, 0.0) * implicit_pdf * implicit_pdf;
+			//weight_all += implicit_pdf * implicit_pdf;
 
-			//contribution += Vec3(0.0, 1.0, 0.0) * explicit_pdf;
-			//weight_all += explicit_pdf;
+			//contribution += Vec3(0.0, 1.0, 0.0) * explicit_pdf * explicit_pdf;
+			//weight_all += explicit_pdf * explicit_pdf;
 
 			//if (0.0001 < weight_all) {
 			//	contribution /= weight_all;
