@@ -107,41 +107,23 @@ namespace lc {
 			// なぜなら結合の際に方向が変わってしまうため
 			Vec3 coef = Vec3(1.0);
 
+
 			MicroSurface surface;
 		};
 		std::vector<Node> nodes;
 	};
 	
-	inline Path trace(const Ray &ray, const Scene &scene, EngineType &engine, boost::optional<MicroSurface> light_surface) {
+	inline Path path_trace(const Ray &ray, const Scene &scene, EngineType &engine) {
 		Ray curr_ray = ray;
 		Path path;
-		
-		// カメラトレーシングの場合は、直接は無視する（今回はピンホールカメラモデルなので）
-		// ライトトレーシングの場合は、直接を考慮にいれる
-		if (light_surface) {
-			Path::Node node;
-			node.surface = *light_surface;
-			node.omega_o = curr_ray.d;
-			path.nodes.push_back(node);
-		}
-		//else {
-		//	MicroSurface m;
-		//	m.p = ray.o;
-		//	m.n = ray.d;
-		//	m.m = EmissiveMaterial();
-		//	Path::Node node;
-		//	node.surface = m;
-		//	node.omega_i = curr_ray.d;
-		//	path.nodes.push_back(node);
-		//}
 
 		Vec3 coef(1.0);
 		int diffusion_count = 0;
 		Vec3 diffusion(1.0);
 
-		int max_diffusion_count = light_surface ? 1 : 3;
+		int max_diffusion_count = 3;
 		for (int i = 0; i < 5 && diffusion_count < max_diffusion_count; ++i) {
-			double breaking = std::max(glm::max(coef.r, coef.g), coef.b);
+			//double breaking = std::max(glm::max(coef.r, coef.g), coef.b);
 			//if (breaking < generate_continuous(engine)) {
 			//	break;
 			//}
@@ -158,18 +140,14 @@ namespace lc {
 
 				HemisphereTransform hemisphereTransform(surface.n);
 
-				// BRDF
+				// BRDF 
 				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
 				Vec3 omega_i = hemisphereTransform.transform(cos_sample.value);
 				double pdf = cos_sample.pdf;
 				Vec3 omega_o = -curr_ray.d;
 
-				if (light_surface) {
-					std::swap(omega_i, omega_o);
-				}
-
 				double brdf = glm::one_over_pi<double>();
-				double cos_term = glm::max(glm::dot(surface.n, omega_i), 0.0); // マイナスがいるようだが、原因は不明
+				double cos_term = glm::max(glm::dot(surface.n, omega_i), 0.0);
 				Vec3 this_coef = lambert->albedo * brdf * cos_term / pdf;
 
 				Path::Node node;
@@ -208,9 +186,6 @@ namespace lc {
 				curr_ray = Ray(glm::fma(omega_i_reflect, kReflectionBias, surface.p), omega_i_reflect);
 				continue;
 			} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
-				if (light_surface == boost::none && diffusion_count != 0) {
-					break;
-				}
 				Path::Node node;
 				node.omega_o = -curr_ray.d;
 				node.surface = surface;
@@ -223,78 +198,78 @@ namespace lc {
 		return path;
 	}
 
-	inline Vec3 evaluate_bi_directional(const Path &camera_path, const Path &light_path, int camera_i, int light_i, double on_light_pdf) {
-		// カメラパスの最後（接続点）
-		Path::Node camera_path_tail = camera_path.nodes[camera_i];
+	//inline Vec3 evaluate_bi_directional(const Path &camera_path, const Path &light_path, int camera_i, int light_i, double on_light_pdf) {
+	//	// カメラパスの最後（接続点）
+	//	Path::Node camera_path_tail = camera_path.nodes[camera_i];
 
-		// ライトパスの頭（接続点）
-		Path::Node light_path_head = light_path.nodes[light_i];
+	//	// ライトパスの頭（接続点）
+	//	Path::Node light_path_head = light_path.nodes[light_i];
 
-		Vec3 coef(1.0);
+	//	Vec3 coef(1.0);
 
-		coef *= camera_path_tail.coef;
-		coef *= light_path_head.coef;
+	//	coef *= camera_path_tail.coef;
+	//	coef *= light_path_head.coef;
 
-		Vec3 connection_direction = light_path_head.surface.p - camera_path_tail.surface.p;
-		double lengthSquared = glm::length2(connection_direction);
-		connection_direction /= glm::sqrt(lengthSquared);
+	//	Vec3 connection_direction = light_path_head.surface.p - camera_path_tail.surface.p;
+	//	double lengthSquared = glm::length2(connection_direction);
+	//	connection_direction /= glm::sqrt(lengthSquared);
 
-		double geometry =
-			glm::max(glm::dot(connection_direction, camera_path_tail.surface.n), 0.0001)
-			*
-			glm::max(glm::dot(-connection_direction, light_path_head.surface.n), 0.0001)
-			/
-			lengthSquared;
+	//	double geometry =
+	//		glm::max(glm::dot(connection_direction, camera_path_tail.surface.n), 0.0001)
+	//		*
+	//		glm::max(glm::dot(-connection_direction, light_path_head.surface.n), 0.0001)
+	//		/
+	//		lengthSquared;
 
-		if (lengthSquared < 0.00001) {
-			return Vec3();
-		}
+	//	if (lengthSquared < 0.00001) {
+	//		return Vec3();
+	//	}
 
-		coef *= geometry;
+	//	coef *= geometry;
 
-		// 二つのBRDF関係を再計算
-		{
-			if (auto lambert = boost::get<LambertMaterial>(&camera_path_tail.surface.m)) {
-				auto surface = camera_path_tail.surface;
-				Vec3 omega_i = connection_direction;
-				Vec3 omega_o = camera_path_tail.omega_o;
+	//	// 二つのBRDF関係を再計算
+	//	{
+	//		if (auto lambert = boost::get<LambertMaterial>(&camera_path_tail.surface.m)) {
+	//			auto surface = camera_path_tail.surface;
+	//			Vec3 omega_i = connection_direction;
+	//			Vec3 omega_o = camera_path_tail.omega_o;
 
-				double brdf = glm::one_over_pi<double>();
-				double cos_term = glm::max(glm::dot(surface.n, omega_i), 0.0); // マイナスがいるようだが、原因は不明
-				Vec3 this_coef = lambert->albedo * brdf * cos_term;
-				coef *= this_coef;
-			}
-		}
+	//			double brdf = glm::one_over_pi<double>();
+	//			double cos_term = glm::max(glm::dot(surface.n, omega_i), 0.0); // マイナスがいるようだが、原因は不明
+	//			Vec3 this_coef = lambert->albedo * brdf * cos_term;
+	//			coef *= this_coef;
+	//		}
+	//	}
 
-		{
-			if (auto lambert = boost::get<LambertMaterial>(&light_path_head.surface.m)) {
-				auto surface = light_path_head.surface;
-				Vec3 omega_i = camera_path_tail.omega_i;
-				Vec3 omega_o = -connection_direction;
+	//	{
+	//		if (auto lambert = boost::get<LambertMaterial>(&light_path_head.surface.m)) {
+	//			auto surface = light_path_head.surface;
+	//			Vec3 omega_i = camera_path_tail.omega_i;
+	//			Vec3 omega_o = -connection_direction;
 
-				double brdf = glm::one_over_pi<double>();
-				double cos_term = glm::max(glm::dot(surface.n, omega_i), 0.0); // マイナスがいるようだが、原因は不明
-				Vec3 this_coef = lambert->albedo * brdf * cos_term;
-				coef *= this_coef;
-			}
-		}
+	//			double brdf = glm::one_over_pi<double>();
+	//			double cos_term = glm::max(glm::dot(surface.n, omega_i), 0.0); // マイナスがいるようだが、原因は不明
+	//			Vec3 this_coef = lambert->albedo * brdf * cos_term;
+	//			coef *= this_coef;
+	//		}
+	//	}
 
-		// light_path.nodes[0].surface.
-		//Vec3 light_p = light_path.nodes[0].surface.p;
-		//Vec3 light_n = light_path.nodes[0].surface.n;
-		//Vec3 direct_sample_p;
-		//if (light_i == 0) {
-		//	direct_sample_p = camera_path.nodes[camera_i].surface.p;
-		//}
-		//else {
-		//	direct_sample_p = light_path.nodes[light_i].surface.p;
-		//}
-		//Vec3 light_dir = glm::normalize(light_p - direct_sample_p);
-		//double light_pdf = glm::distance2(light_p, direct_sample_p) * on_light_pdf / glm::max(glm::dot(light_n, light_dir), 0.0001);
-		//coef /= light_pdf;
+	//	// light_path.nodes[0].surface.
+	//	//Vec3 light_p = light_path.nodes[0].surface.p;
+	//	//Vec3 light_n = light_path.nodes[0].surface.n;
+	//	//Vec3 direct_sample_p;
+	//	//if (light_i == 0) {
+	//	//	direct_sample_p = camera_path.nodes[camera_i].surface.p;
+	//	//}
+	//	//else {
+	//	//	direct_sample_p = light_path.nodes[light_i].surface.p;
+	//	//}
+	//	//Vec3 light_dir = glm::normalize(light_p - direct_sample_p);
+	//	//double light_pdf = glm::distance2(light_p, direct_sample_p) * on_light_pdf / glm::max(glm::dot(light_n, light_dir), 0.0001);
+	//	//coef /= light_pdf;
 
-		return coef;
-	}
+	//	return coef;
+	//}
 	
 	inline double weight(int ci, int li) {
 		return 1.0 / (double(ci) + double(li) + 1.0);
@@ -302,7 +277,7 @@ namespace lc {
 
 	inline Vec3 radiance(const Ray &camera_ray, const Scene &scene, EngineType &engine) {
 		// 通常のパストレーシング
-		Path camera_path = trace(camera_ray, scene, engine, boost::none);
+		Path camera_path = path_trace(camera_ray, scene, engine);
 
 		// ライトからのレイを生成する
 		// OnLight light = on_light(scene, engine);
@@ -735,15 +710,6 @@ void RayTracerApp::setup()
 	dragon.material = lc::RefractionMaterial(1.4);
 	_scene.objects.push_back(dragon);*/
 
-	//static auto light = lc::SphereObject(
-	//	lc::Sphere(lc::Vec3(0.0, 20.0, 0.0), 5.0),
-	//	lc::EmissiveMaterial(lc::Vec3(10.0))
-	//);
-	//static auto light = lc::RectLight();
-	//light.y = 24.0;
-	//light.size = 5.0;
-	//light.color = lc::Vec3(200.0);
-
 	{
 		auto light = lc::DiscLight();
 		light.disc = lc::make_disc(
@@ -765,7 +731,6 @@ void RayTracerApp::setup()
 		_scene.add(light);
 	}
 	_scene.finalize();
-
 
 	// _scene.importances.push_back(lc::ImportantArea(spec.sphere));
 	// 
