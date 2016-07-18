@@ -63,7 +63,7 @@ void TriangleCollisionApp::draw()
 	gl::drawCoordinateFrame();
 
 
-	lc::Xor e;
+	lc::DefaultEngine e;
 
 	struct ColorTriangle {
 		lc::Triangle triangle;
@@ -84,13 +84,13 @@ void TriangleCollisionApp::draw()
 	double tri_size = 0.8;
 	for (int i = 0; i < 5; ++i) {
 		ColorTriangle tri;
-		lc::Vec3 center(lc::generate_continuous(e, -tri_range, tri_range), lc::generate_continuous(e, -tri_range, tri_range), lc::generate_continuous(e, -tri_range, tri_range));
+		lc::Vec3 center(e.continuous(-tri_range, tri_range), e.continuous(-tri_range, tri_range), e.continuous(-tri_range, tri_range));
 		tri.triangle = lc::Triangle(
-			center + lc::Vec3(lc::generate_continuous(e, -tri_size, tri_size), lc::generate_continuous(e, -tri_size, tri_size), lc::generate_continuous(e, -tri_size, tri_size)),
-			center + lc::Vec3(lc::generate_continuous(e, -tri_size, tri_size), lc::generate_continuous(e, -tri_size, tri_size), lc::generate_continuous(e, -tri_size, tri_size)),
-			center + lc::Vec3(lc::generate_continuous(e, -tri_size, tri_size), lc::generate_continuous(e, -tri_size, tri_size), lc::generate_continuous(e, -tri_size, tri_size))
+			center + lc::Vec3(e.continuous(-tri_size, tri_size), e.continuous(-tri_size, tri_size), e.continuous(-tri_size, tri_size)),
+			center + lc::Vec3(e.continuous(-tri_size, tri_size), e.continuous(-tri_size, tri_size), e.continuous(-tri_size, tri_size)),
+			center + lc::Vec3(e.continuous(-tri_size, tri_size), e.continuous(-tri_size, tri_size), e.continuous(-tri_size, tri_size))
 		);
-		tri.color = glm::rgbColor(lc::Vec3(lc::generate_continuous(e) * 360.0, 1.0, 1.0));
+		tri.color = glm::rgbColor(lc::Vec3(e.continuous() * 360.0, 1.0, 1.0));
 		triangles.emplace_back(tri);
 	}
 
@@ -115,8 +115,8 @@ void TriangleCollisionApp::draw()
 	tri_vb.draw();
 
 	for (int i = 0; i < 50; ++i) {
-		lc::Vec3 o = lc::generate_on_sphere(e) * glm::mix(1.5, 4.0, lc::generate_continuous(e));
-		lc::Ray ray(o, glm::normalize(lc::generate_on_sphere(e) * 0.5 - o));
+		lc::Vec3 o = e.on_sphere() * glm::mix(1.5, 4.0, e.continuous());
+		lc::Ray ray(o, glm::normalize(e.on_sphere() * 0.5 - o));
 
 		int intersection_index;
 		boost::optional<lc::TriangleIntersection> intersection;

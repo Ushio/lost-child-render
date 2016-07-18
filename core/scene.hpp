@@ -24,7 +24,7 @@ namespace lc {
 	//public:
 	//	virtual ~ILight() {}
 	//	virtual EmissiveMaterial emissive_material() const = 0;
-	//	virtual Sample<LightSurface> on_light(EngineType &e) const = 0;
+	//	virtual Sample<LightSurface> on_light(DefaultEngine &e) const = 0;
 	//};
 
 	//struct RectLight : public ILight {
@@ -34,7 +34,7 @@ namespace lc {
 	//	virtual EmissiveMaterial emissive_material() const {
 	//		return EmissiveMaterial(color);
 	//	}
-	//	virtual Sample<LightSurface> on_light(EngineType &e) const {
+	//	virtual Sample<LightSurface> on_light(DefaultEngine &e) const {
 	//		Sample<LightSurface> ls;
 	//		ls.pdf = 1.0 / (size * size);
 	//		ls.value.p = Vec3(
@@ -57,7 +57,7 @@ namespace lc {
 	class ILight {
 	public:
 		virtual ~ILight() {}
-		virtual Sample<OnLight> sample(EngineType &e) const = 0;
+		virtual Sample<OnLight> sample(DefaultEngine &e) const = 0;
 	};
 
 	struct DiscLight : public ILight {
@@ -65,13 +65,10 @@ namespace lc {
 
 		}
 
-		virtual Sample<OnLight> sample(EngineType &e) const {
+		virtual Sample<OnLight> sample(DefaultEngine &e) const {
 			HemisphereTransform hemisphereTransform(disc.plane.n);
-			double r_sqrt = glm::sqrt(generate_continuous(e, 0.0, disc.radius));
-			double theta = generate_continuous(e, 0.0, glm::two_pi<double>());
-			double x = r_sqrt * glm::cos(theta);
-			double y = r_sqrt * glm::sin(theta);
-			auto p = disc.origin + hemisphereTransform.transform(Vec3(x, 0.0, y));
+			auto circle = e.on_circle() * disc.radius;
+			auto p = disc.origin + hemisphereTransform.transform(Vec3(circle.x, 0.0, circle.y));
 
 			Sample<OnLight> s;
 			s.pdf = 1.0 / (glm::pi<double>() * disc.radius * disc.radius);
@@ -167,7 +164,7 @@ namespace lc {
 	};
 
 
-	//Sample<OnLight> on_light(const Scene &scene, EngineType &engine) {
+	//Sample<OnLight> on_light(const Scene &scene, DefaultEngine &engine) {
 	//	const ILight *light = scene.lights.size() == 1 ?
 	//		scene.lights[0]
 	//		:
@@ -187,11 +184,11 @@ namespace lc {
 	直接サンプルするレイを生成
 	pdfは立体角尺度
 	*/
-	inline Sample<Ray> direct_sample_ray(const Scene &scene, const Vec3 &p, EngineType &engine) {
+	inline Sample<Ray> direct_sample_ray(const Scene &scene, const Vec3 &p, DefaultEngine &engine) {
 		const ILight *light = scene.lights.size() == 1 ?
 			scene.lights[0]
 			:
-			scene.lights[engine() % scene.lights.size()];
+			scene.lights[engine.generate() % scene.lights.size()];
 
 		double selection_pdf = 1.0 / scene.lights.size();
 

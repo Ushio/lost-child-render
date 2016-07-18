@@ -103,10 +103,10 @@ void SphereCollisionApp::draw()
 
 	gl::drawCoordinateFrame(0.5f);
 	
-	lc::Xor engine;
+	lc::DefaultEngine engine;
 	for (int i = 0; i < 100; ++i) {
-		double x = (lc::generate_continuous(engine) - 0.5) * 1.7;
-		double z = (lc::generate_continuous(engine) - 0.5) * 1.7;
+		double x = (engine.continuous() - 0.5) * 1.7;
+		double z = (engine.continuous() - 0.5) * 1.7;
 		lc::Ray ray(lc::Vec3(x, 2.0, z), lc::Vec3(0.0, -1.0, 0.0));
 
 		trace_refract(ray, sphere, _sphere_ior);

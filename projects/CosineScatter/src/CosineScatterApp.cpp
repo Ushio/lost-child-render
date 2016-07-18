@@ -53,8 +53,7 @@ void CosineScatterApp::draw()
 		_plane->draw();
 	}
 
-
-	lc::MersenneTwister e;
+	lc::RandomEngine<lc::MersenneTwister> e;
 
 	gl::VertBatch vb(GL_POINTS);
 
@@ -62,7 +61,7 @@ void CosineScatterApp::draw()
 
 	double sum = 0.0;
 	for (int i = 0; i < N; ++i) {
-		auto s = lc::generate_cosine_weight_hemisphere(e);
+		auto s = e.cosine_weight_hemisphere();
 		vb.vertex(s.value);
 
 		// せっかくの重みが台無しではあるが、テストとして

@@ -96,10 +96,10 @@ void AABBApp::draw()
 	tri_vb.draw();
 	// gl::drawStrokedCube(cinder::AxisAlignedBox((vec3)aabb.min_position, (vec3)aabb.max_position));
 
-	lc::Xor e;
+	lc::DefaultEngine e;
 	for (int i = 0; i < 100; ++i) {
-		lc::Vec3 o = lc::generate_on_sphere(e) * glm::mix(1.5, 4.0, lc::generate_continuous(e));
-		lc::Ray ray(o, lc::generate_continuous(e) < 0.2 ? lc::generate_on_sphere(e) : -o);
+		lc::Vec3 o = e.on_sphere() * glm::mix(1.5, 4.0, e.continuous());
+		lc::Ray ray(o, e.continuous() < 0.2 ? e.on_sphere() : -o);
 
 		if (auto intersection = lc::intersect(ray, aabb)) {
 			auto p = intersection->intersect_position(ray);

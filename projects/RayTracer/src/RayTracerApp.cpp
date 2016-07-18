@@ -39,17 +39,14 @@ namespace lc {
 				for (int x = 0; x < _width; ++x) {
 					int index = y * _width + x;
 					Pixel &pixel = _data[index];
-					pixel.engine = EngineType(index);
-
-					for (int i = 0; i < random_skip; ++i) {
-						pixel.engine();
-					}
+					pixel.engine = DefaultEngine(index + 1);
+					pixel.engine.discard(random_skip);
 				}
 			}
 		}
 		struct Pixel {
 			Vec3 color;
-			EngineType engine;
+			DefaultEngine engine;
 		};
 
 		int _width = 0;
@@ -117,7 +114,7 @@ namespace lc {
 		std::vector<Node> nodes;
 	};
 	
-	inline Path path_trace(const Ray &ray, const Scene &scene, EngineType &engine) {
+	inline Path path_trace(const Ray &ray, const Scene &scene, DefaultEngine &engine) {
 		Ray curr_ray = ray;
 		Path path;
 
@@ -126,13 +123,11 @@ namespace lc {
 		int diffusion_count = 0;
 		Vec3 diffusion(1.0);
 
+		int max_trace = 5;
 		int max_diffusion_count = 3;
-		for (int i = 0; i < 5 && diffusion_count < max_diffusion_count; ++i) {
-			//double breaking = std::max(glm::max(coef.r, coef.g), coef.b);
-			//if (breaking < generate_continuous(engine)) {
-			//	break;
-			//}
+		path.nodes.reserve(max_trace);
 
+		for (int i = 0; i < max_trace && diffusion_count < max_diffusion_count; ++i) {
 			auto intersection = intersect(curr_ray, scene);
 			if (!intersection) {
 				break;
@@ -145,7 +140,7 @@ namespace lc {
 
 				HemisphereTransform hemisphereTransform(surface.n);
 
-				Sample<Vec3> cos_sample = generate_cosine_weight_hemisphere(engine);
+				Sample<Vec3> cos_sample = engine.cosine_weight_hemisphere();
 				Vec3 omega_i = hemisphereTransform.transform(cos_sample.value);
 				Vec3 omega_o = -curr_ray.d;
 
@@ -178,7 +173,7 @@ namespace lc {
 				};
 				double fresnel_value = fresnel(dot(omega_o, surface.n), 0.02);
 
-				if (fresnel_value < generate_continuous(engine)) {
+				if (fresnel_value < engine.continuous()) {
 					auto omega_i_refract = refraction(-omega_o, surface.n, eta);
 					curr_ray = Ray(glm::fma(omega_i_refract, kReflectionBias, surface.p), omega_i_refract);
 					continue;
@@ -289,7 +284,7 @@ namespace lc {
 		return 1.0 / (double(ci) + double(li) + 1.0);
 	}
 
-	inline Vec3 radiance(const Ray &camera_ray, const Scene &scene, EngineType &engine) {
+	inline Vec3 radiance(const Ray &camera_ray, const Scene &scene, DefaultEngine &engine) {
 		// 通常のパストレーシング
 		Path camera_path = path_trace(camera_ray, scene, engine);
 
@@ -384,11 +379,11 @@ namespace lc {
 			Vec3 contribution;
 
 			// MIS
-			contribution += implicit_contribution * implicit_pdf * implicit_pdf;
-			weight_all += implicit_pdf * implicit_pdf;
+			contribution += implicit_contribution * implicit_pdf;
+			weight_all += implicit_pdf;
 
-			contribution += explicit_contribution * explicit_pdf * explicit_pdf;
-			weight_all += explicit_pdf * explicit_pdf;
+			contribution += explicit_contribution * explicit_pdf;
+			weight_all += explicit_pdf;
 
 			if (0.0001 < weight_all) {
 				contribution /= weight_all;
@@ -396,11 +391,11 @@ namespace lc {
 			}
 
 			// MIS ビジュアライズ
-			//contribution += Vec3(1.0, 0.0, 0.0) * implicit_pdf * implicit_pdf;
-			//weight_all += implicit_pdf * implicit_pdf;
+			//contribution += Vec3(1.0, 0.0, 0.0) * implicit_pdf;
+			//weight_all += implicit_pdf;
 
-			//contribution += Vec3(0.0, 1.0, 0.0) * explicit_pdf * explicit_pdf;
-			//weight_all += explicit_pdf * explicit_pdf;
+			//contribution += Vec3(0.0, 1.0, 0.0) * explicit_pdf;
+			//weight_all += explicit_pdf;
 
 			//if (0.0001 < weight_all) {
 			//	contribution /= weight_all;
@@ -428,7 +423,7 @@ namespace lc {
 		// return weight_all <= glm::epsilon<double>() ? Vec3() : color / weight_all;
 	}
 
-	//inline Vec3 radiance(const Ray &camera_ray, const Scene &scene, EngineType &engine) {
+	//inline Vec3 radiance(const Ray &camera_ray, const Scene &scene, DefaultEngine &engine) {
 	//	// カメラトレーシング
 	//	Path from_camera = trace(camera_ray, scene, engine);
 	//	
@@ -558,8 +553,8 @@ namespace lc {
 				Vec3 color;
 				for (int aai = 0; aai < aa_sample; ++aai) {
 					auto aa_offset = Vec2(
-						generate_continuous(pixel.engine) - 0.5,
-						generate_continuous(pixel.engine) - 0.5
+						pixel.engine.continuous() - 0.5,
+						pixel.engine.continuous() - 0.5
 					);
 
 					/* ビュー空間 */
@@ -838,13 +833,6 @@ void RayTracerApp::draw()
 		_plane->draw();
 	}
 
-	static int step = 0;
-	lc::Xor engine(10);
-
-	for (int i = 0; i < step; ++i) {
-		engine();
-	}
-
 	lc::Path path;
 	if (_render == false) {
 		lc::draw_scene(_scene, wide, wide);
@@ -854,7 +842,6 @@ void RayTracerApp::draw()
 		gl::ScopedColor color(1.0, 0.5, 0.0);
 
 		auto ray = _scene.viewTransform.to_local_ray(ray_view);
-		// path = lc::trace(ray, _scene, engine);
 
 		
 		//if (path.intersections.empty() == false) {
@@ -872,8 +859,6 @@ void RayTracerApp::draw()
 	ui::Text("samples: %d", _buffer->_iteration);
 	ui::Text("time: %.2f s", _renderTime);
 	ui::Text("rays per miliseconds: %.2f", aa * _buffer->_width * _buffer->_height * _buffer->_iteration * 0.001 / (_renderTime + 0.0001));
-	
-	ui::SliderInt("step [debug]", &step, 0, 100);
 	
 	ui::Checkbox("render", &_render);
 

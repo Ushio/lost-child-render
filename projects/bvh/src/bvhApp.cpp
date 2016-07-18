@@ -85,11 +85,11 @@ void bvhApp::draw()
 	}
 
 
-	lc::Xor e;
+	lc::DefaultEngine e;
 
 	for (int i = 0; i < 50; ++i) {
-		lc::Vec3 o = lc::generate_on_sphere(e) * glm::mix(1.5, 4.0, lc::generate_continuous(e));
-		lc::Ray ray(o, glm::normalize(lc::generate_on_sphere(e) * 0.5 - o));
+		lc::Vec3 o = e.on_sphere() * glm::mix(1.5, 4.0, e.continuous());
+		lc::Ray ray(o, glm::normalize(e.on_sphere() * 0.5 - o));
 
 		if (auto intersection = _bvh.intersect(ray)) {
 			auto p = intersection->intersect_position(ray);
