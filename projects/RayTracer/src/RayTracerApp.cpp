@@ -16,6 +16,7 @@
 #include "helper_cinder/draw_wire_aabb.hpp"
 #include "helper_cinder/draw_camera.hpp"
 #include "helper_cinder/draw_scene.hpp"
+#include "importance.hpp"
 #include "random_engine.hpp"
 #include "transform.hpp"
 #include "camera.hpp"
@@ -24,13 +25,14 @@
 #include "material.hpp"
 #include "scene.hpp"
 
+
 #include <stack>
 #include <chrono>
 
 #include <boost/format.hpp>
 #include <boost/variant.hpp>
 
-static const int wide = 256;
+static const int wide = 512;
 
 namespace lc {
 	struct AccumlationBuffer {
@@ -138,13 +140,14 @@ namespace lc {
 			if (auto lambert = boost::get<LambertMaterial>(&surface.m)) {
 				diffusion_count++;
 
-				HemisphereTransform hemisphereTransform(surface.n);
+				// HemisphereTransform hemisphereTransform(surface.n);
 
-				Sample<Vec3> cos_sample = engine.cosine_weight_hemisphere();
-				Vec3 omega_i = hemisphereTransform.transform(cos_sample.value);
+				auto eps = std::make_tuple(engine.continuous(), engine.continuous());
+				Sample<Vec3> lambert_sample = importance_lambert(eps, surface.n);
+				Vec3 omega_i = lambert_sample.value;
 				Vec3 omega_o = -curr_ray.d;
 
-				double this_pdf = cos_sample.pdf;
+				double this_pdf = lambert_sample.pdf;
 
 				Path::Node node;
 				node.coef = coef;
@@ -602,6 +605,7 @@ namespace lc {
 		return surface;
 	}
 
+
 	// すこぶる微妙な気配
 	inline cinder::Surface32fRef median_filter(cinder::Surface32fRef image) {
 		int width = image->getWidth();
@@ -646,13 +650,14 @@ namespace lc {
 		});
 		return surface;
 	}
-
-	
 }
+
 
 using namespace ci;
 using namespace ci::app;
 using namespace std;
+
+
 
 class RayTracerApp : public App {
 public:
@@ -660,6 +665,11 @@ public:
 	void mouseDown(MouseEvent event) override;
 	void update() override;
 	void draw() override;
+
+	void write_exr(const char *name, cinder::Surface32fRef surface) {
+		auto dstPath = getAssetPath("") / name;
+		writeImage(dstPath, *surface, ImageTarget::Options().quality(1.0f), "");
+	}
 
 	CameraPersp	_camera;
 	CameraUi _cameraUi;
@@ -864,9 +874,7 @@ void RayTracerApp::draw()
 
 	if (_render) {
 		double beg = getElapsedSeconds();
-		for (int i = 0; i < 5; ++i) {
-			lc::step(*_buffer, _scene, aa);
-		}
+		lc::step(*_buffer, _scene, aa);
 		double duration = getElapsedSeconds() - beg;
 
 		_renderTime += duration;
@@ -886,7 +894,10 @@ void RayTracerApp::draw()
 	if (ui::SliderFloat("preview gamma", &_previewGamma, 0.0f, 4.0f)) {
 		fbo_update = true;
 	}
-	ui::Checkbox("median", &_median);
+	// ui::Checkbox("median", &_median);
+	if (ui::Button("save")) {
+		write_exr("image.exr", _surface);
+	}
 	
 	
 	if (fbo_update && _texture) {

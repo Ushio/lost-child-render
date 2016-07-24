@@ -4,6 +4,7 @@
 #include "cinder/CameraUi.h"
 
 #include "random_engine.hpp"
+#include "importance.hpp"
 #include <boost/format.hpp>
 
 using namespace ci;
@@ -24,6 +25,14 @@ class CosineScatterApp : public App {
 
 void CosineScatterApp::setup()
 {
+	//std::vector<int> v(5);
+	//try {
+	//	v.at(5);
+	//}catch(std::exception &e) {
+	//	console() << e.what() << std::endl;
+	//}
+
+
 	_camera.lookAt(vec3(0, 0.0f, 4.0f), vec3(0.0f));
 	_camera.setPerspective(40.0f, getWindowAspectRatio(), 0.01f, 100.0f);
 	_cameraUi = CameraUi(&_camera, getWindow());
@@ -57,21 +66,65 @@ void CosineScatterApp::draw()
 
 	gl::VertBatch vb(GL_POINTS);
 
-	int N = 20000;
+	int N = 500000;
+	// int N = 5000;
+
+	lc::Vec3 omega_o = glm::normalize(lc::Vec3(0.0, 1.0, 2.0));
+	{
+		gl::ScopedColor vc(1.0f, 0.5f, 0.5f);
+		gl::drawVector(vec3(), omega_o);
+	}
+	
+
+	auto p = (vec2)getMousePos() / (vec2)getDisplay()->getSize();
+	double roughness = p.x;
+	// console() << boost::format("p = %d") % p.x << std::endl;
+
+	struct SampleValue {
+		double pdf = 0;
+		double angle = 0;
+	};
+	std::vector<SampleValue> samples;
 
 	double sum = 0.0;
 	for (int i = 0; i < N; ++i) {
-		auto s = e.cosine_weight_hemisphere();
-		vb.vertex(s.value);
+		lc::Vec3 n = glm::normalize(lc::Vec3(0.0, 1.0, 0.0));
+
+		auto eps = std::make_tuple(e.continuous(), e.continuous());
+		// auto sample = lc::importance_lambert(eps, n);
+		auto sample = lc::importance_ggx(eps, n, omega_o, roughness);
+
+		lc::Vec3 omega_i = sample.value;
+		double pdf = sample.pdf;
+
+
+		if (glm::dot(omega_i, n) < 0.0) {
+			continue;
+		}
 
 		// せっかくの重みが台無しではあるが、テストとして
 		// 表面積（厚さ1の体積）
-		sum += 1.0 / s.pdf;
+		sum += 1.0 / pdf;
+
+		// PDFの分布可視化
+		float c = pdf * 3.0f;
+		vb.color(c, c, c);
+		vb.vertex(omega_i);
 	}
+
 	if (getElapsedFrames() % 60 == 1) {
 		double integral = sum / N;
 		console() << boost::format("integral = %d") % integral << std::endl;
+
+		//std::sort(samples.begin(), samples.end(), [](SampleValue a, SampleValue b) {
+		//	return a.angle < b.angle;
+		//});
+		//for (auto sv : samples) {
+		//	console() << boost::format("%d radians, pdf = %.3f") % sv.angle % sv.pdf << std::endl;
+		//}
 	}
+
+
 
 	vb.draw();
 }

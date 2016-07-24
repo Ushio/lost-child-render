@@ -10,6 +10,7 @@ namespace lc {
 
 		Vec3 albedo = Vec3(1.0);
 	};
+	// struct 
 	struct EmissiveMaterial {
 		EmissiveMaterial() {}
 		EmissiveMaterial(Vec3 color_) :color(color_) {}

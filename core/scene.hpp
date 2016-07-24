@@ -14,6 +14,7 @@
 #include "collision_plane.hpp"
 #include "collision_disc.hpp"
 #include "material.hpp"
+#include "importance.hpp"
 
 namespace lc {
 	//struct LightSurface {
