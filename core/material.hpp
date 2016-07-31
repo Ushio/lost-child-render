@@ -10,7 +10,15 @@ namespace lc {
 
 		Vec3 albedo = Vec3(1.0);
 	};
-	// struct 
+	struct CookTorranceMaterial {
+		CookTorranceMaterial() {}
+		CookTorranceMaterial(Vec3 albedo_, double roughness_, double fesnel_coef_)
+			:albedo(albedo_), roughness(roughness_), fesnel_coef(fesnel_coef_){}
+
+		Vec3 albedo = Vec3(1.0);
+		double roughness = 0.5;
+		double fesnel_coef = 0.98;
+	};
 	struct EmissiveMaterial {
 		EmissiveMaterial() {}
 		EmissiveMaterial(Vec3 color_) :color(color_) {}
@@ -26,7 +34,7 @@ namespace lc {
 		PerfectSpecularMaterial() {}
 	};
 
-	typedef boost::variant<EmissiveMaterial, LambertMaterial, RefractionMaterial, PerfectSpecularMaterial> Material;
+	typedef boost::variant<EmissiveMaterial, LambertMaterial, CookTorranceMaterial, RefractionMaterial, PerfectSpecularMaterial> Material;
 
 	struct MicroSurface {
 		Vec3 p;

@@ -46,7 +46,11 @@ namespace lc{
 	}
 
 	// eps は 0-1
-	Sample<Vec3> importance_ggx(const std::tuple<double, double> &eps, const Vec3 &n, const Vec3 &omega_o, double roughness) {
+	struct GGXValue {
+		Vec3 omega_i;
+		Vec3 h;
+	};
+	Sample<GGXValue> importance_ggx(const std::tuple<double, double> &eps, const Vec3 &n, const Vec3 &omega_o, double roughness) {
 		double a = roughness * roughness;
 		double aa = a * a;
 
@@ -60,6 +64,8 @@ namespace lc{
 			)
 		);
 
+		HemisphereTransform hemisphereTransform(n);
+
 		// R = 1
 		// -x <-> +x
 		//  0 <-> +y
@@ -70,11 +76,12 @@ namespace lc{
 		double x = sin_theta * glm::sin(phi);
 		double y = cos_theta;
 
-		Vec3 h = Vec3(x, y, z);
+		Vec3 h = hemisphereTransform.transform(Vec3(x, y, z));
 		auto omega_i = glm::reflect(-omega_o, h);
 
-		Sample<Vec3> sample;
-		sample.value = omega_i;
+		Sample<GGXValue> sample;
+		sample.value.omega_i = omega_i;
+		sample.value.h = h;
 
 		double pdf_h = ggx_pdf(cos_theta, roughness);
 		double pdf = pdf_h / (4.0 * glm::dot(omega_o, h));

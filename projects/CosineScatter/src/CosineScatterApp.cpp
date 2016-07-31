@@ -5,6 +5,7 @@
 
 #include "random_engine.hpp"
 #include "importance.hpp"
+#include "brdf.hpp"
 #include <boost/format.hpp>
 
 using namespace ci;
@@ -66,7 +67,7 @@ void CosineScatterApp::draw()
 
 	gl::VertBatch vb(GL_POINTS);
 
-	int N = 500000;
+	int N = 50000;
 	// int N = 5000;
 
 	lc::Vec3 omega_o = glm::normalize(lc::Vec3(0.0, 1.0, 2.0));
@@ -78,14 +79,19 @@ void CosineScatterApp::draw()
 
 	auto p = (vec2)getMousePos() / (vec2)getDisplay()->getSize();
 	double roughness = p.x;
-	// console() << boost::format("p = %d") % p.x << std::endl;
 
-	struct SampleValue {
-		double pdf = 0;
-		double angle = 0;
-	};
-	std::vector<SampleValue> samples;
+	/*
+	lc::Vec3 eye = _camera.getEyePoint();
+	lc::Vec3 omega_o = glm::normalize(eye);
 
+	for (int i = 0; i < N; ++i) {
+		// auto eps = std::make_tuple(e.continuous(), e.continuous());
+		auto n = e.on_hemisphere();
+		lc::Gp(omega_o, )
+	}
+	*/
+
+	/*
 	double sum = 0.0;
 	for (int i = 0; i < N; ++i) {
 		lc::Vec3 n = glm::normalize(lc::Vec3(0.0, 1.0, 0.0));
@@ -115,16 +121,9 @@ void CosineScatterApp::draw()
 	if (getElapsedFrames() % 60 == 1) {
 		double integral = sum / N;
 		console() << boost::format("integral = %d") % integral << std::endl;
-
-		//std::sort(samples.begin(), samples.end(), [](SampleValue a, SampleValue b) {
-		//	return a.angle < b.angle;
-		//});
-		//for (auto sv : samples) {
-		//	console() << boost::format("%d radians, pdf = %.3f") % sv.angle % sv.pdf << std::endl;
-		//}
 	}
 
-
+	*/
 
 	vb.draw();
 }
