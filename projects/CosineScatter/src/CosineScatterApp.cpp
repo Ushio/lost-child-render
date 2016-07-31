@@ -8,9 +8,42 @@
 #include "brdf.hpp"
 #include <boost/format.hpp>
 
+#include <fpieee.h>
+#include <excpt.h>
+#include <float.h>
+#include <stddef.h>
+
 using namespace ci;
 using namespace ci::app;
 using namespace std;
+
+int fpieee_handler(_FPIEEE_RECORD *);
+
+int fpieee_handler(_FPIEEE_RECORD *pieee)
+{
+	// user-defined ieee trap handler routine:
+	// there is one handler for all 
+	// IEEE exceptions
+
+	// Assume the user wants all invalid 
+	// operations to return 0.
+
+	if ((pieee->Cause.InvalidOperation) &&
+		(pieee->Result.Format == _FpFormatFp32))
+	{
+		pieee->Result.Value.Fp32Value = 0.0F;
+
+		return EXCEPTION_CONTINUE_EXECUTION;
+	}
+	else
+		return EXCEPTION_EXECUTE_HANDLER;
+}
+
+#define _EXC_MASK    \
+    _EM_UNDERFLOW  + \
+    _EM_OVERFLOW   + \
+    _EM_ZERODIVIDE + \
+    _EM_INEXACT
 
 class CosineScatterApp : public App {
   public:
@@ -32,6 +65,8 @@ void CosineScatterApp::setup()
 	//}catch(std::exception &e) {
 	//	console() << e.what() << std::endl;
 	//}
+
+	_controlfp_s(NULL, _EM_UNDERFLOW | _EM_OVERFLOW | _EM_ZERODIVIDE | _EM_INEXACT, _MCW_EM);
 
 
 	_camera.lookAt(vec3(0, 0.0f, 4.0f), vec3(0.0f));
@@ -91,7 +126,6 @@ void CosineScatterApp::draw()
 	}
 	*/
 
-	/*
 	double sum = 0.0;
 	for (int i = 0; i < N; ++i) {
 		lc::Vec3 n = glm::normalize(lc::Vec3(0.0, 1.0, 0.0));
@@ -100,7 +134,7 @@ void CosineScatterApp::draw()
 		// auto sample = lc::importance_lambert(eps, n);
 		auto sample = lc::importance_ggx(eps, n, omega_o, roughness);
 
-		lc::Vec3 omega_i = sample.value;
+		lc::Vec3 omega_i = sample.value.omega_i;
 		double pdf = sample.pdf;
 
 
@@ -120,10 +154,9 @@ void CosineScatterApp::draw()
 
 	if (getElapsedFrames() % 60 == 1) {
 		double integral = sum / N;
-		console() << boost::format("integral = %d") % integral << std::endl;
+		console() << boost::format("integral = %d, r = %.2f") % integral % roughness << std::endl;
 	}
 
-	*/
 
 	vb.draw();
 }

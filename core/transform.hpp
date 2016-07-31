@@ -52,34 +52,13 @@ namespace lc {
 	}
 
 	// +y を軸とする半球を、任意のyaxisに向けて回転する
-	struct HemisphereTransform {
-	public:
-		// yaxisは正規化されていることを約束する
-		HemisphereTransform(const Vec3 &yaxis) {
-			Vec3 _yaxis(yaxis);
-			Vec3 _xaxis;
-			Vec3 _zaxis;
-			if (0.999 < glm::abs(yaxis.z)) {
-				_xaxis = glm::normalize(glm::cross(Vec3(0.0, -1.0, 0.0), yaxis));
-			}
-			else {
-				_xaxis = glm::normalize(glm::cross(Vec3(0.0, 0.0, 1.0), yaxis));
-			}
-			_zaxis = glm::cross(_xaxis, _yaxis);
-			_transform = Mat3(_xaxis, _yaxis, _zaxis);
-		}
-		Vec3 transform(const Vec3 &direction) const {
-			return _transform * direction;
-		}
-		Vec3 inverse_transform(const Vec3 &direction) const {
-			return glm::transpose(_transform) * direction;
-		}
-		Mat3 _transform;
-	};
 	//struct HemisphereTransform {
 	//public:
 	//	// yaxisは正規化されていることを約束する
-	//	HemisphereTransform(const Vec3 &yaxis):_yaxis(yaxis){
+	//	HemisphereTransform(const Vec3 &yaxis) {
+	//		Vec3 _yaxis(yaxis);
+	//		Vec3 _xaxis;
+	//		Vec3 _zaxis;
 	//		if (0.999 < glm::abs(yaxis.z)) {
 	//			_xaxis = glm::normalize(glm::cross(Vec3(0.0, -1.0, 0.0), yaxis));
 	//		}
@@ -87,13 +66,34 @@ namespace lc {
 	//			_xaxis = glm::normalize(glm::cross(Vec3(0.0, 0.0, 1.0), yaxis));
 	//		}
 	//		_zaxis = glm::cross(_xaxis, _yaxis);
+	//		_transform = Mat3(_xaxis, _yaxis, _zaxis);
 	//	}
 	//	Vec3 transform(const Vec3 &direction) const {
-	//		return direction.x * _xaxis + direction.y * _yaxis + direction.z * _zaxis;
+	//		return _transform * direction;
 	//	}
-	//	Vec3 _yaxis;
-	//	Vec3 _xaxis;
-	//	Vec3 _zaxis;
+	//	Vec3 inverse_transform(const Vec3 &direction) const {
+	//		return glm::transpose(_transform) * direction;
+	//	}
+	//	Mat3 _transform;
 	//};
+	struct HemisphereTransform {
+	public:
+		// yaxisは正規化されていることを約束する
+		HemisphereTransform(const Vec3 &yaxis):_yaxis(yaxis){
+			if (0.999 < glm::abs(yaxis.z)) {
+				_xaxis = glm::normalize(glm::cross(Vec3(0.0, -1.0, 0.0), yaxis));
+			}
+			else {
+				_xaxis = glm::normalize(glm::cross(Vec3(0.0, 0.0, 1.0), yaxis));
+			}
+			_zaxis = glm::cross(_xaxis, _yaxis);
+		}
+		Vec3 transform(const Vec3 &direction) const {
+			return direction.x * _xaxis + direction.y * _yaxis + direction.z * _zaxis;
+		}
+		Vec3 _yaxis;
+		Vec3 _xaxis;
+		Vec3 _zaxis;
+	};
 }
 

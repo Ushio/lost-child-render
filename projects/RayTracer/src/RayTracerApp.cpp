@@ -23,6 +23,7 @@
 #include "material.hpp"
 #include "scene.hpp"
 #include "brdf.hpp"
+#include "constants.hpp"
 
 #include <stack>
 #include <chrono>
@@ -168,20 +169,45 @@ namespace lc {
 
 				auto eps = std::make_tuple(engine.continuous(), engine.continuous());
 				Sample<GGXValue> ggx_sample = importance_ggx(eps, surface.n, omega_o, cook->roughness);
+
+				Vec3 n = surface.n;
 				Vec3 omega_i = ggx_sample.value.omega_i;
 				Vec3 omega_o = -curr_ray.d;
 
 				// これでいいのか？
 				// 遮蔽という意味ではいい気もする
-				if (glm::dot(omega_i, surface.n) < 0.0) {
+				if (glm::dot(omega_i, n) < 0.0) {
 					return Path();
 				}
-
 				double this_pdf = ggx_sample.pdf;
 
-				double cos_term = glm::max(glm::dot(surface.n, omega_i), 0.0);
+				double cos_term = glm::max(glm::dot(n, omega_i), 0.0);
 				double f = lc::fresnel(cos_term, cook->fesnel_coef);
 
+				double brdf = 0.0;
+
+				//double g = G(omega_i, omega_o, ggx_sample.value.h, surface.n, cook->roughness);
+				//double d = ggx_d(glm::dot(ggx_sample.value.h, surface.n), cook->roughness);
+				//brdf = d * f * g / glm::max(4.0 * glm::dot(omega_o, surface.n) * cos_term, 0.0001);
+				 
+				// フレネルによるBRDFブレンディング
+				if (engine.continuous() < f) {
+					double g = G(omega_i, omega_o, ggx_sample.value.h, n, cook->roughness);
+					double d = ggx_d(glm::dot(ggx_sample.value.h, n), cook->roughness);
+					brdf = d * g / glm::max(4.0 * glm::dot(omega_o, n) * cos_term, kEPS);
+				}
+				else {
+					// brdf = 0;
+					auto eps = std::make_tuple(engine.continuous(), engine.continuous());
+					Sample<Vec3> lambert_sample = importance_lambert(eps, surface.n);
+					omega_i = lambert_sample.value;
+					omega_o = -curr_ray.d;
+					this_pdf = lambert_sample.pdf;
+
+					brdf = glm::one_over_pi<double>();
+
+					cos_term = glm::max(glm::dot(n, omega_i), 0.0);
+				}
 
 				Path::Node node;
 				node.coef = coef;
@@ -190,15 +216,6 @@ namespace lc {
 				node.omega_i = omega_i;
 				node.omega_o = omega_o;
 				path.nodes.push_back(node);
-
-				
-				// BRDF
-				double g = G(omega_i, omega_o, ggx_sample.value.h, surface.n, cook->roughness);
-				double d = ggx_d(glm::dot(ggx_sample.value.h, surface.n), cook->roughness);
-				
-				double brdf = d * f * g / glm::max(4.0 * glm::dot(omega_o, surface.n) * cos_term, 0.0001);
-
-				brdf = glm::clamp(brdf, 0.0, 1.0);
 
 				Vec3 this_coef = cook->albedo * brdf * cos_term;
 
@@ -319,10 +336,6 @@ namespace lc {
 
 	//	return coef;
 	//}
-	
-	inline double weight(int ci, int li) {
-		return 1.0 / (double(ci) + double(li) + 1.0);
-	}
 
 	inline Vec3 radiance(const Ray &camera_ray, const Scene &scene, DefaultEngine &engine) {
 		// 通常のパストレーシング
@@ -400,31 +413,60 @@ namespace lc {
 						double cos_term = glm::max(glm::dot(camera_node.surface.n, omega_i), 0.0);
 						Vec3 this_coef = lambert->albedo * brdf * cos_term;
 
-						explicit_contribution = this_coef * emissive->color * camera_node.coef / pdf;
+						explicit_contribution = this_coef * emissive->color * camera_node.coef / glm::max(pdf, kEPS);
 						explicit_pdf = pdf;
+					}
+				}
+			} else if(auto cook = boost::get<CookTorranceMaterial>(&camera_node.surface.m)) {
+				auto sample_ray = direct_sample_ray(scene, camera_node.surface.p, engine);
+				if (auto direct_intersect = intersect(sample_ray.value, scene)) {
+					if (auto emissive = boost::get<EmissiveMaterial>(&direct_intersect->surface.m)) {
+						double pdf = camera_node.pdf * sample_ray.pdf;
 
-						// 
-						// color += explicit_contribution;
+						Vec3 n = camera_node.surface.n;
+						Vec3 omega_o = camera_node.omega_o;
+						Vec3 omega_i = sample_ray.value.d;
+						double cos_term = glm::max(glm::dot(n, omega_i), 0.0);
+						double f = lc::fresnel(cos_term, cook->fesnel_coef);
+
+						double brdf = 0.0;
+						if(engine.continuous() < f) {
+							Vec3 h = glm::normalize(omega_i + omega_o);
+							double g = G(omega_i, omega_o, h, n, cook->roughness);
+							double d = ggx_d(glm::dot(h, n), cook->roughness);
+							brdf = d * g / glm::max(4.0 * glm::dot(omega_o, n) * cos_term, kEPS);
+						}
+						else {
+							brdf = glm::one_over_pi<double>();
+						}
+			
+						Vec3 this_coef = cook->albedo * brdf * cos_term;
+
+						explicit_contribution = this_coef * emissive->color * camera_node.coef / glm::max(pdf, kEPS);
+						explicit_pdf = pdf;
 					}
 				}
 			}
 			if (is_term) {
 				if (auto emissive = boost::get<EmissiveMaterial>(&camera_node.surface.m)) {
-					implicit_contribution = emissive->color * camera_node.coef / camera_node.pdf;
+					implicit_contribution = emissive->color * camera_node.coef / glm::max(camera_node.pdf, kEPS);
 					implicit_pdf = camera_node.pdf;
 				}
 			}
 
 			// テスト用 強制暗黙戦略
-			color += implicit_contribution;
-			continue;
+			//color += implicit_contribution;
+			//continue;
 
 			// return implicit_contribution;
 			// return explicit_contribution;
 
+#define VISUALIZE_MIS 0
+
 			double weight_all = 0.0;
 			Vec3 contribution;
 
+#if VISUALIZE_MIS == 0
 			// MIS
 			contribution += implicit_contribution * implicit_pdf;
 			weight_all += implicit_pdf;
@@ -436,18 +478,19 @@ namespace lc {
 				contribution /= weight_all;
 				color += contribution;
 			}
-
+#else
 			// MIS ビジュアライズ
-			//contribution += Vec3(1.0, 0.0, 0.0) * implicit_pdf;
-			//weight_all += implicit_pdf;
+			contribution += Vec3(1.0, 0.0, 0.0) * implicit_pdf;
+			weight_all += implicit_pdf;
 
-			//contribution += Vec3(0.0, 1.0, 0.0) * explicit_pdf;
-			//weight_all += explicit_pdf;
+			contribution += Vec3(0.0, 0.0, 1.0) * explicit_pdf;
+			weight_all += explicit_pdf;
 
-			//if (0.0001 < weight_all) {
-			//	contribution /= weight_all;
-			//	color += contribution;
-			//}
+			if (0.0001 < weight_all) {
+				contribution /= weight_all;
+				color += contribution;
+			}
+#endif
 			
 			// BDPT
 			//for (int li = 0; li < light_path.nodes.size(); ++li) {
@@ -738,6 +781,12 @@ public:
 
 void RayTracerApp::setup()
 {
+	_controlfp_s(NULL, _EM_UNDERFLOW | _EM_OVERFLOW | _EM_ZERODIVIDE | _EM_INEXACT, _MCW_EM);
+
+	//double b = 0.0;
+	//double a = 0.0;
+	//double aaa = a / b;
+
 	ui::initialize();
 
 	_camera.lookAt(vec3(0, 0.0f, 60.0f), vec3(0.0f));
@@ -784,17 +833,35 @@ void RayTracerApp::setup()
 	//	lc::PerfectSpecularMaterial()
 	//);
 	//_scene.add(spec);
-	auto spec = lc::SphereObject(
-		lc::Sphere(lc::Vec3(-10.0, -15, -10.0), 10.0),
-		lc::CookTorranceMaterial(lc::Vec3(0.9), 0.5, 0.99)
-	);
-	_scene.add(spec);
 
-	auto grass = lc::SphereObject(
-		lc::Sphere(lc::Vec3(10.0, -15, 10.0), 10.0),
-		lc::RefractionMaterial(1.4)
-	);
-	_scene.add(grass);
+	for (int i = 0; i < 5; ++i) {
+		auto spec = lc::SphereObject(
+			lc::Sphere(lc::Vec3(
+				-20.0 + i * 10.0,
+				-18.0,
+				0.0), 5.0f),
+			lc::CookTorranceMaterial(lc::Vec3(1.0), 0.1 + i * 0.2, 0.99 /*フレネル*/)
+		);
+		_scene.add(spec);
+	}
+	//auto spec = lc::SphereObject(
+	//	lc::Sphere(lc::Vec3(0.0, -10, 0.0), 10.0),
+	//	lc::CookTorranceMaterial(lc::Vec3(1.0), 0.01, 0.01f /*フレネル*/)
+	//);
+	//_scene.add(spec);
+
+
+	//auto spec = lc::SphereObject(
+	//	lc::Sphere(lc::Vec3(-10.0, -15, -10.0), 10.0),
+	//	lc::CookTorranceMaterial(lc::Vec3(0.9), 0.01, 0.01f /*フレネル*/)
+	//);
+	//_scene.add(spec);
+
+	//auto grass = lc::SphereObject(
+	//	lc::Sphere(lc::Vec3(10.0, -15, 10.0), 10.0),
+	//	lc::RefractionMaterial(1.4)
+	//);
+	//_scene.add(grass);
 
 
 	//cinder::ObjLoader loader(loadAsset("dragon.obj"));

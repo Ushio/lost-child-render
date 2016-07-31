@@ -88,6 +88,7 @@ namespace lc {
 		double continuous() {
 			uint32_t uniform = this->generate();
 			constexpr double c = 1.0 / static_cast<double>(0xffffffffLL + 1);
+			// double c = 1.0 / static_cast<double>(0xffffffffLL + 1);
 			return static_cast<double>(uniform) * c;
 		}
 
