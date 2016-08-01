@@ -468,16 +468,42 @@ namespace lc {
 
 #if VISUALIZE_MIS == 0
 			// MIS
-			contribution += implicit_contribution * implicit_pdf;
-			weight_all += implicit_pdf;
+			//contribution += implicit_contribution * implicit_pdf;
+			//weight_all += implicit_pdf;
 
-			contribution += explicit_contribution * explicit_pdf;
-			weight_all += explicit_pdf;
+			//contribution += explicit_contribution * explicit_pdf;
+			//weight_all += explicit_pdf;
+
+			//if (0.0001 < weight_all) {
+			//	contribution /= weight_all;
+			//	color += contribution;
+			//}
+
+			double implicit_weight = glm::pow(implicit_pdf, 2);
+			double explicit_weight = glm::pow(explicit_pdf, 2);
+
+			contribution += implicit_contribution * implicit_weight;
+			weight_all += implicit_weight;
+
+			contribution += explicit_contribution * explicit_weight;
+			weight_all += explicit_weight;
 
 			if (0.0001 < weight_all) {
 				contribution /= weight_all;
 				color += contribution;
 			}
+
+			// MIS ビジュアライズ
+			//contribution += Vec3(1.0, 0.0, 0.0) * implicit_pdf;
+			//weight_all += implicit_pdf;
+
+			//contribution += Vec3(0.0, 0.0, 1.0) * explicit_pdf;
+			//weight_all += explicit_pdf;
+
+			//if (0.0001 < weight_all) {
+			//	contribution /= weight_all;
+			//	color += contribution;
+			//}
 #else
 			// MIS ビジュアライズ
 			contribution += Vec3(1.0, 0.0, 0.0) * implicit_pdf;
