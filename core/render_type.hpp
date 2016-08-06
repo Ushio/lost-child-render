@@ -27,6 +27,20 @@ namespace lc {
 			ar(CEREAL_NVP(o), CEREAL_NVP(d));
 		}
 	};
+
+	struct Triangle {
+		Triangle() {}
+		Triangle(const Vec3 &v0, const Vec3 &v1, const Vec3 &v2) :v{ v0, v1, v2 } {
+
+		}
+		Vec3 &operator[](std::size_t i) {
+			return v[i];
+		}
+		const Vec3 &operator[](std::size_t i) const {
+			return v[i];
+		}
+		std::array<Vec3, 3> v;
+	};
 }
 
 /*

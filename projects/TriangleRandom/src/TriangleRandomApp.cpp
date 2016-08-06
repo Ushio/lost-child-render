@@ -5,7 +5,12 @@
 
 #include "random_engine.hpp"
 #include "triangle_area.hpp"
+#include "uniform_on_triangle.hpp"
+
 #include <boost/format.hpp>
+
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
 
 using namespace ci;
 using namespace ci::app;
@@ -26,6 +31,8 @@ public:
 	gl::BatchRef _plane;
 
 	int _index = 0;
+
+	lc::UniformOnTriangle _uniformTri;
 };
 
 void TriangleRandomApp::setup()
@@ -38,8 +45,31 @@ void TriangleRandomApp::setup()
 	_plane = gl::Batch::create(geom::WirePlane().size(vec2(10.0f)).subdivisions(ivec2(10)), colorShader);
 
 
-	// 面積確認コード
-	lc::RandomEngine<lc::MersenneTwister> e;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string err;
+	std::string path = (getAssetPath("") / "butterfly.obj").string();
+	bool ret = tinyobj::LoadObj(shapes, materials, err, path.c_str());
+
+	const tinyobj::shape_t &shape = shapes[0];
+	std::vector<lc::Triangle> triangles;
+	for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+		lc::Triangle tri;
+		for (int j = 0; j < 3; ++j) {
+			int idx = shape.mesh.indices[i + j];
+			for (int k = 0; k < 3; ++k) {
+				tri.v[j][k] = shape.mesh.positions[idx * 3 + k];
+			}
+		}
+		triangles.push_back(tri);
+	}
+
+	_uniformTri.set_triangle(triangles);
+	_uniformTri.build();
+
+	// 面積検証コード
+	/*
+	lc::RandomEngine<lc::Xor> e;
 	e.discard(100);
 	for (int i = 0; i < 100; ++i) {
 		lc::Vec3 p0(0.0, 0.0, 0.0);
@@ -68,6 +98,7 @@ void TriangleRandomApp::setup()
 			abort();
 		}
 	}
+	*/
 }
 
 void TriangleRandomApp::mouseDown(MouseEvent event)
@@ -91,36 +122,24 @@ void TriangleRandomApp::draw()
 		_plane->draw();
 	}
 
-	lc::RandomEngine<lc::MersenneTwister> e;
-	e.discard(51 + _index);
-
-	double triscale = 1.0;
-	lc::Vec3 tri[] = {
-		lc::Vec3(e.continuous(-triscale, triscale), e.continuous(-triscale, triscale), e.continuous(-triscale, triscale)),
-		lc::Vec3(e.continuous(-triscale, triscale), e.continuous(-triscale, triscale), e.continuous(-triscale, triscale)),
-		lc::Vec3(e.continuous(-triscale, triscale), e.continuous(-triscale, triscale), e.continuous(-triscale, triscale)),
-	};
-
-	for (int i = 0; i < 3; ++i) {
-		gl::drawLine(tri[i], tri[(i + 1) % 3]);
-	}
-
 	gl::VertBatch vb(GL_POINTS);
 
-	static lc::RandomEngine<lc::MersenneTwister> e_triin;
+	static lc::RandomEngine<lc::Xor128> e_triin;
 	for (int i = 0; i < 10000; ++i) {
-		double r1 = e_triin.continuous();
-		double r2 = e_triin.continuous();
-
-		double sqrt_r1 = glm::sqrt(r1);
-		lc::Vec3 p =
-			(1.0 - sqrt_r1) * tri[0]
-			+ sqrt_r1 * (1.0 - r2) * tri[1]
-			+ sqrt_r1 * r2 * tri[2];
+		lc::Vec3 p = _uniformTri.uniform(e_triin);
 		vb.vertex(p);
 	}
 
 	vb.draw();
+
+	for (int i = 0; i < _uniformTri._triangles.size(); ++i) {
+		auto tri = _uniformTri._triangles[i];
+		for (int j = 0; j < 3; ++j) {
+			gl::drawLine(tri[j], tri[(j + 1) % 3]);
+		}
+	}
 }
 
-CINDER_APP(TriangleRandomApp, RendererGl)
+CINDER_APP(TriangleRandomApp, RendererGl, [](App::Settings *settings) {
+	settings->setConsoleWindowEnabled(true);
+})

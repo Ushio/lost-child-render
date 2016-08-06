@@ -9,14 +9,6 @@
   Ç¬Ç‘ÇÍÇΩéOäpå`Ç»Ç«ÇÕçlÇ¶Ç»Ç¢Ç±Ç∆Ç…Ç∑ÇÈ
 */
 namespace lc {
-	struct Triangle {
-		Triangle() {}
-		Triangle(const Vec3 &v0, const Vec3 &v1, const Vec3 &v2) :v{v0, v1, v2} {
-
-		}
-		std::array<Vec3, 3> v;
-	};
-
 	inline Vec3 triangle_normal(const Triangle &triangle, bool isback) {
 		Vec3 e1 = triangle.v[1] - triangle.v[0];
 		Vec3 e2 = triangle.v[2] - triangle.v[0];

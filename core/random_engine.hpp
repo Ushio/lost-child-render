@@ -85,13 +85,14 @@ namespace lc {
 			}
 		}
 
+		// 0 <= x < 1
 		double continuous() {
 			uint32_t uniform = this->generate();
 			constexpr double c = 1.0 / static_cast<double>(0xffffffffLL + 1);
-			// double c = 1.0 / static_cast<double>(0xffffffffLL + 1);
 			return static_cast<double>(uniform) * c;
 		}
 
+		// a <= x < b
 		double continuous(double a, double b) {
 			return a + continuous() * (b - a);
 		}
