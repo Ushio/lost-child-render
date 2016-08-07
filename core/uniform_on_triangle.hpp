@@ -38,13 +38,21 @@ namespace lc {
 			_area = area;
 		}
 
+		struct Uniform {
+			Vec3 p;
+			int index = -1;
+		};
 		template <class Generator>
-		Vec3 uniform(RandomEngine<Generator> &e) const {
+		Uniform uniform(RandomEngine<Generator> &e) const {
 			double p = e.continuous(0.0, _area);
 			auto it = std::upper_bound(_cumulative_areas.begin(), _cumulative_areas.end(), p);
 			std::size_t index = std::distance(_cumulative_areas.begin(), it);
 			index = std::min(index, _cumulative_areas.size() - 1);
-			return uniform_on_triangle(e, _triangles[index]);
+
+			Uniform u;
+			u.p = uniform_on_triangle(e, _triangles[index]);
+			u.index = index;
+			return u;
 		}
 
 		void set_triangle(const std::vector<Triangle> &triangles) {

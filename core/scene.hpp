@@ -15,6 +15,7 @@
 #include "material.hpp"
 #include "importance.hpp"
 #include "lazy_value.hpp"
+#include "uniform_on_triangle.hpp"
 
 namespace lc {
 	typedef LazyValue<MicroSurface, 256> LazyMicroSurface;
@@ -58,9 +59,8 @@ namespace lc {
 			if (0.0 < glm::dot(disc.plane.n, p - srcP)) {
 				if (doubleSided == false) {
 					s.value.emissive = EmissiveMaterial(Vec3(0.0));
-				} else {
-					s.value.n = -s.value.n;
 				}
+				s.value.n = -s.value.n;
 			}
 
 			return s;
@@ -104,8 +104,54 @@ namespace lc {
 		bool doubleSided = false;
 	};
 
-	struct PolygonLight {
+	struct PolygonLight : public ILight {
+		Sample<OnLight> sample(DefaultEngine &e, const Vec3 &srcP) const override {
+			auto u = uniform_triangle.uniform(e);
+			Sample<OnLight> s;
+			s.pdf = 1.0 / uniform_triangle.get_area();
+			s.value.p = u.p;
+			s.value.n = triangle_normal(uniform_triangle._triangles[u.index], false);
 
+			bool isBack = 0.0 < glm::dot(s.value.n, u.p - srcP);
+			s.value.emissive = isBack ? emissive_back : emissive_front;
+
+			// サンプルソースの方向と法線が反対を向いてしまっている
+			if (isBack) {
+				s.value.n = -s.value.n;
+			}
+
+			return s;
+		}
+		double getArea() const override {
+			return uniform_triangle.get_area();
+		}
+
+		void intersect(const Ray &ray, LazyMicroSurface &surface, double &tmin) const override {
+			for (int i = 0; i < uniform_triangle._triangles.size(); ++i) {
+				if (auto intersection = lc::intersect(ray, uniform_triangle._triangles[i])) {
+					if (intersection->tmin < tmin) {
+						auto triangle = uniform_triangle._triangles[i];
+						EmissiveMaterial emissive_front_value = emissive_front;
+						EmissiveMaterial emissive_back_value = emissive_back;
+
+						surface = [ray, intersection, triangle, emissive_front_value, emissive_back_value]() {
+							MicroSurface m;
+							m.p = intersection->intersect_position(ray);
+							m.n = intersection->intersect_normal(triangle);
+							m.vn = m.n;
+							m.m = intersection->isback ? emissive_back_value : emissive_front_value;
+							m.isback = intersection->isback;
+							return m;
+						};
+						tmin = intersection->tmin;
+					}
+				}
+			}
+		}
+
+		EmissiveMaterial emissive_front;
+		EmissiveMaterial emissive_back;
+		UniformOnTriangle uniform_triangle;
 	};
 
 	struct SphereObject : public ISceneIntersectable {
@@ -207,7 +253,7 @@ namespace lc {
 		}
 	};
 
-	typedef boost::variant<SphereObject, ConelBoxObject, TriangleMeshObject, DiscLight> SceneObject;
+	typedef boost::variant<SphereObject, ConelBoxObject, TriangleMeshObject, DiscLight, PolygonLight> SceneObject;
 
 	struct Scene {
 		Transform viewTransform;

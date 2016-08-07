@@ -30,6 +30,9 @@ namespace lc {
 	inline void draw_object(const DiscLight &o) {
 
 	}
+	inline void draw_object(const PolygonLight &o) {
+
+	}
 
 	struct DrawObjectVisitor : public boost::static_visitor<> {
 		template <class T>
@@ -42,13 +45,6 @@ namespace lc {
 		for (int i = 0; i < scene.objects.size(); ++i) {
 			scene.objects[i].apply_visitor(DrawObjectVisitor());
 		}
-
-		//for (int i = 0; i < scene.importances.size(); ++i) {
-		//	auto shape = scene.importances[i].shape;
-		//	cinder::gl::ScopedPolygonMode wire(GL_LINE);
-		//	cinder::gl::ScopedColor c(1.0, 0.3, 0.3);
-		//	cinder::gl::drawSphere(shape.center, shape.radius, 20);
-		//}
 
 		cinder::gl::ScopedMatrices smat;
 		cinder::gl::ScopedColor c(0.5, 0.5, 0.5);

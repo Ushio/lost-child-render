@@ -31,6 +31,11 @@
 #include <boost/format.hpp>
 #include <boost/variant.hpp>
 
+
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
+
+
 static const int wide = 256;
 
 namespace lc {
@@ -243,18 +248,25 @@ namespace lc {
 				curr_ray = Ray(glm::fma(omega_i_reflect, kReflectionBias, surface.p), omega_i_reflect);
 				continue;
 			} else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
-				if (glm::dot(surface.n, curr_ray.d) < 0.0) {
-					Path::Node node;
-					node.coef = coef;
-					node.pdf = pdf;
-					// node.omega_i = 存在しない
-					node.omega_o = -curr_ray.d;
-					node.surface = surface;
-					path.nodes.push_back(node);
-				}
-				else {
-					// 裏面はいったん気にしないことにする
-				}
+				//if (glm::dot(surface.n, curr_ray.d) < 0.0) {
+				//	Path::Node node;
+				//	node.coef = coef;
+				//	node.pdf = pdf;
+				//	// node.omega_i = 存在しない
+				//	node.omega_o = -curr_ray.d;
+				//	node.surface = surface;
+				//	path.nodes.push_back(node);
+				//}
+				//else {
+				//	// 裏面はいったん気にしないことにする
+				//}
+				Path::Node node;
+				node.coef = coef;
+				node.pdf = pdf;
+				// node.omega_i = 存在しない
+				node.omega_o = -curr_ray.d;
+				node.surface = surface;
+				path.nodes.push_back(node);
 				
 				break;
 			}
@@ -923,34 +935,72 @@ void RayTracerApp::setup()
 	//	_scene.add(light);
 	//}
 
+	//{
+	//	auto light = lc::DiscLight();
+	//	light.disc = lc::make_disc(
+	//		lc::Vec3(0.0, 24.0, 0.0),
+	//		lc::Vec3(0.0, -1.0, 0.0),
+	//		7
+	//	);
+	//	light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
+	//	light.doubleSided = false;
+	//	_scene.add(light);
+	//}
+	//{
+	//	auto light = lc::DiscLight();
+	//	light.disc = lc::make_disc(
+	//		lc::Vec3(20.0f, 10.0, 0.0),
+	//		glm::normalize(lc::Vec3(-1.0, -1.0, 0.0)),
+	//		5
+	//	);
+	//	light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
+	//	light.doubleSided = true;
+	//	_scene.add(light);
+	//}
+
+
+	// ポリゴンライト
 	{
-		auto light = lc::DiscLight();
-		light.disc = lc::make_disc(
-			lc::Vec3(0.0, 24.0, 0.0),
-			lc::Vec3(0.0, -1.0, 0.0),
-			7
-		);
-		light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
-		light.doubleSided = false;
+		auto light = lc::PolygonLight();
+		light.emissive_front = lc::Vec3(5.0, 5.0, 0.5);
+		light.emissive_back = lc::Vec3(0.5, 10.0, 10.0);
+
+		std::vector<tinyobj::shape_t> shapes;
+		std::vector<tinyobj::material_t> materials;
+		std::string err;
+		std::string path = (getAssetPath("") / "butterfly.obj").string();
+		bool ret = tinyobj::LoadObj(shapes, materials, err, path.c_str());
+
+		const tinyobj::shape_t &shape = shapes[0];
+		std::vector<lc::Triangle> triangles;
+		for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+			lc::Triangle tri;
+			for (int j = 0; j < 3; ++j) {
+				int idx = shape.mesh.indices[i + j];
+				for (int k = 0; k < 3; ++k) {
+					tri.v[j][k] = shape.mesh.positions[idx * 3 + k];
+				}
+			}
+			triangles.push_back(tri);
+		}
+
+		// デフォルトは奥を向いている？
+		for (int i = 0; i < triangles.size(); ++i) {
+			for (int j = 0; j < 3; ++j) {
+				triangles[i][j] *= 10.0;
+				triangles[i][j] = glm::rotateX(triangles[i][j], glm::radians(40.0));
+				triangles[i][j] = glm::rotateY(triangles[i][j], glm::radians(70.0));
+			}
+		}
+
+		light.uniform_triangle.set_triangle(triangles);
+		light.uniform_triangle.build();
+
 		_scene.add(light);
 	}
-	{
-		auto light = lc::DiscLight();
-		light.disc = lc::make_disc(
-			lc::Vec3(20.0f, 10.0, 0.0),
-			glm::normalize(lc::Vec3(-1.0, -1.0, 0.0)),
-			5
-		);
-		light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
-		light.doubleSided = true;
-		_scene.add(light);
-	}
+
 	_scene.finalize();
 
-	// _scene.importances.push_back(lc::ImportantArea(spec.sphere));
-	// 
-	// _scene.lights.push_back(lc::ImportantArea(light.sphere, light.object_id));
-	// _scene.importances.push_back(lc::ImportantArea(grass.sphere, grass.object_id));
 }
 
 void RayTracerApp::mouseDown(MouseEvent event)

@@ -126,7 +126,7 @@ void TriangleRandomApp::draw()
 
 	static lc::RandomEngine<lc::Xor128> e_triin;
 	for (int i = 0; i < 10000; ++i) {
-		lc::Vec3 p = _uniformTri.uniform(e_triin);
+		lc::Vec3 p = _uniformTri.uniform(e_triin).p;
 		vb.vertex(p);
 	}
 
