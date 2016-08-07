@@ -931,6 +931,7 @@ void RayTracerApp::setup()
 			7
 		);
 		light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
+		light.doubleSided = false;
 		_scene.add(light);
 	}
 	{
@@ -941,6 +942,7 @@ void RayTracerApp::setup()
 			5
 		);
 		light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
+		light.doubleSided = true;
 		_scene.add(light);
 	}
 	_scene.finalize();

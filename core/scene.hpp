@@ -17,51 +17,25 @@
 #include "lazy_value.hpp"
 
 namespace lc {
-	//struct LightSurface {
-	//	Vec3 n;
-	//	Vec3 p;
-	//};
-	//class ILight {
-	//public:
-	//	virtual ~ILight() {}
-	//	virtual EmissiveMaterial emissive_material() const = 0;
-	//	virtual Sample<LightSurface> on_light(DefaultEngine &e) const = 0;
-	//};
-
-	//struct RectLight : public ILight {
-	//	RectLight() {
-
-	//	}
-	//	virtual EmissiveMaterial emissive_material() const {
-	//		return EmissiveMaterial(color);
-	//	}
-	//	virtual Sample<LightSurface> on_light(DefaultEngine &e) const {
-	//		Sample<LightSurface> ls;
-	//		ls.pdf = 1.0 / (size * size);
-	//		ls.value.p = Vec3(
-	//			generate_continuous(e, -size * 0.5, size * 0.5),
-	//			y,
-	//			generate_continuous(e, -size * 0.5, size * 0.5));
-	//		ls.value.n = Vec3(0.0, -1.0, 0.0);
-	//		return ls;
-	//	}
-	//	double size = 0.0;
-	//	double y = 0.0;
-	//	Vec3 color;
-	//};
-	//typedef LazyValue<MicroSurface, 256>
+	typedef LazyValue<MicroSurface, 256> LazyMicroSurface;
 
 	struct OnLight {
 		Vec3 p;
 		Vec3 n;
 		EmissiveMaterial emissive;
 	};
-	class ILight {
+	class ISceneIntersectable {
+	public:
+		virtual ~ISceneIntersectable() {}
+		virtual void intersect(const Ray &ray, LazyMicroSurface &surface, double &tmin) const = 0;
+	};
+	class ILight : public ISceneIntersectable {
 	public:
 		virtual ~ILight() {}
-		virtual Sample<OnLight> sample(DefaultEngine &e) const = 0;
+
+		// これは
+		virtual Sample<OnLight> sample(DefaultEngine &e, const Vec3 &srcP) const = 0;
 		virtual double getArea() const = 0;
-		virtual boost::optional<MicroSurface> intersect(const Ray &ray, double &tmin) const = 0;
 	};
 
 	struct DiscLight : public ILight {
@@ -69,7 +43,7 @@ namespace lc {
 
 		}
 
-		Sample<OnLight> sample(DefaultEngine &e) const override {
+		Sample<OnLight> sample(DefaultEngine &e, const Vec3 &srcP) const override {
 			HemisphereTransform hemisphereTransform(disc.plane.n);
 			auto circle = e.on_circle() * disc.radius;
 			auto p = disc.origin + hemisphereTransform.transform(Vec3(circle.x, 0.0, circle.y));
@@ -79,21 +53,46 @@ namespace lc {
 			s.value.p = p;
 			s.value.n = disc.plane.n;
 			s.value.emissive = emissive;
+
+			// サンプルソースの方向と法線が反対を向いてしまっている
+			if (0.0 < glm::dot(disc.plane.n, p - srcP)) {
+				if (doubleSided == false) {
+					s.value.emissive = EmissiveMaterial(Vec3(0.0));
+				} else {
+					s.value.n = -s.value.n;
+				}
+			}
+
 			return s;
 		}
 		double getArea() const override {
 			return glm::pi<double>() * disc.radius * disc.radius;
 		}
 
-		boost::optional<MicroSurface> intersect(const Ray &ray, double &tmin) const override {
+		void intersect(const Ray &ray, LazyMicroSurface &surface, double &tmin) const override {
 			if (auto intersection = lc::intersect(ray, disc)) {
 				if (intersection->tmin < tmin) {
-					MicroSurface m;
-					m.p = intersection->intersect_position(ray);
-					m.n = intersection->intersect_normal;
-					m.vn = m.n;
-					m.m = intersection->isback ? EmissiveMaterial(Vec3(0.0)) : emissive;
-					m.isback = intersection->isback;
+					auto emissive_value = this->emissive;
+					auto doubleSided_value = doubleSided;
+					surface = [ray, intersection, emissive_value, doubleSided_value]() {
+						MicroSurface m;
+						m.p = intersection->intersect_position(ray);
+						m.n = intersection->intersect_normal;
+
+						// 反対を向いたときの処理
+						if (doubleSided_value) {
+							if (intersection->isback) {
+								m.n = -m.n;
+							}
+							m.m = emissive_value;
+						} else {
+							m.m = intersection->isback ? EmissiveMaterial(Vec3(0.0)) : emissive_value;
+						}
+
+						m.vn = m.n;
+						m.isback = intersection->isback;
+						return m;
+					};
 
 					tmin = intersection->tmin;
 				}
@@ -109,10 +108,29 @@ namespace lc {
 
 	};
 
-	struct SphereObject {
+	struct SphereObject : public ISceneIntersectable {
 		SphereObject(const Sphere &s, const Material &m) :sphere(s), material(m) {}
 		Sphere sphere;
 		Material material;
+
+		void intersect(const Ray &ray, LazyMicroSurface &surface, double &tmin) const override {
+			if (auto intersection = lc::intersect(ray, sphere)) {
+				if (intersection->tmin < tmin) {
+					auto s = sphere;
+					auto mat = material;
+					surface = [intersection, ray, s, mat]() {
+						MicroSurface m;
+						m.p = intersection->intersect_position(ray);
+						m.n = intersection->intersect_normal(s.center, m.p);
+						m.vn = m.n;
+						m.m = mat;
+						m.isback = intersection->isback;
+						return m;
+					};
+					tmin = intersection->tmin;
+				}
+			}
+		}
 	};
 
 	struct TriangleMeshObject {
@@ -121,8 +139,9 @@ namespace lc {
 		Transform transform;
 	};
 
-	struct ConelBoxObject {
+	struct ConelBoxObject : public ISceneIntersectable {
 		ConelBoxObject() :ConelBoxObject(5.0) {}
+		~ConelBoxObject() {}
 		ConelBoxObject(double size) {
 			double hsize = size * 0.5;
 			Vec3 R(0.75, 0.25, 0.25);
@@ -165,6 +184,27 @@ namespace lc {
 			Vec3 color;
 		};
 		std::vector<ColorTriangle> triangles;
+
+		void intersect(const Ray &ray, LazyMicroSurface &surface, double &tmin) const override {
+			for (int i = 0; i < triangles.size(); ++i) {
+				if (auto intersection = lc::intersect(ray, triangles[i].triangle)) {
+					if (intersection->tmin < tmin) {
+						ColorTriangle triangle = triangles[i];
+						surface = [ray, intersection, triangle]() {
+							MicroSurface m;
+							m.p = intersection->intersect_position(ray);
+							m.n = intersection->intersect_normal(triangle.triangle);
+							m.vn = m.n;
+							m.m = LambertMaterial(triangle.color);
+							m.isback = intersection->isback;
+
+							return m;
+						};
+						tmin = intersection->tmin;
+					}
+				}
+			}
+		}
 	};
 
 	typedef boost::variant<SphereObject, ConelBoxObject, TriangleMeshObject, DiscLight> SceneObject;
@@ -180,8 +220,8 @@ namespace lc {
 		void finalize() {
 			lights.clear();
 			for (size_t i = 0; i < objects.size(); ++i) {
-				if (auto *d = boost::get<DiscLight>(&objects[i])) {
-					lights.push_back(d);
+				if (auto *light = boost::polymorphic_strict_get<ILight>(&objects[i])) {
+					lights.push_back(light);
 				}
 			}
 		}
@@ -189,23 +229,6 @@ namespace lc {
 		std::vector<SceneObject> objects;
 		std::vector<ILight *> lights;
 	};
-
-
-	//Sample<OnLight> on_light(const Scene &scene, DefaultEngine &engine) {
-	//	const ILight *light = scene.lights.size() == 1 ?
-	//		scene.lights[0]
-	//		:
-	//		scene.lights[engine() % scene.lights.size()];
-
-	//	Sample<OnLight> s = light->sample(engine);
-	//	s.pdf /= scene.lights.size();
-	//	return s;
-	//}
-
-	//struct DirectSample {
-	//	Ray ray;
-	//	double pdf = 0.0;
-	//};
 
 	/*
 	直接サンプルするレイを生成
@@ -219,23 +242,8 @@ namespace lc {
 
 		double selection_pdf = 1.0 / scene.lights.size();
 
-		//double distanceSquared;
-		//Vec3 q;
-		//Vec3 qn;
-		//double area_pdf;
-		//do {
-		//	Sample<LightSurface> s = light->on_light(engine);
-		//	qn = s.value.n;
-		//	q = s.value.p;
-		//	area_pdf = s.pdf;
-		//	distanceSquared = glm::distance2(p, q);
-		//} while (distanceSquared < 0.1);
-
-		//Vec3 dir = glm::normalize(q - p);
-		//double pdf = distanceSquared * area_pdf / glm::max(glm::dot(qn, -dir), 0.0001);
-
 		// 表面積の確率密度を立体角の確率密度に変換する
-		Sample<OnLight> s = light->sample(engine);
+		Sample<OnLight> s = light->sample(engine, p);
 		Vec3 dir = glm::normalize(s.value.p - p);
 		double pdf = glm::distance2(p, s.value.p) * s.pdf / glm::abs(glm::dot(s.value.n, dir));
 
@@ -245,96 +253,16 @@ namespace lc {
 		return sr;
 	}
 
-	//struct MicroSurfaceIntersection {
-	//	MicroSurface surface;
-	//};
 	inline boost::optional<MicroSurface> intersect(const Ray &ray, const Scene &scene) {
 		double tmin = std::numeric_limits<double>::max();
 		LazyValue<MicroSurface, 256> min_intersection;
 
 		for (int i = 0; i < scene.objects.size(); ++i) {
-			if (auto *s = boost::get<SphereObject>(&scene.objects[i])) {
-				if (auto intersection = intersect(ray, s->sphere)) {
-					if (intersection->tmin < tmin) {
-						min_intersection = [intersection, ray, s]() {
-							MicroSurface m;
-							m.p = intersection->intersect_position(ray);
-							m.n = intersection->intersect_normal(s->sphere.center, m.p);
-							m.vn = m.n;
-							m.m = s->material;
-							m.isback = intersection->isback;
-
-							return m;
-						};
-						tmin = intersection->tmin;
-					}
-				}
-			} else if (auto *c = boost::get<ConelBoxObject>(&scene.objects[i])) {
-				for (int i = 0; i < c->triangles.size(); ++i) {
-					if (auto intersection = intersect(ray, c->triangles[i].triangle)) {
-						if (intersection->tmin < tmin) {
-							min_intersection = [ray, intersection, i, c]() {
-								MicroSurface m;
-								m.p = intersection->intersect_position(ray);
-								m.n = intersection->intersect_normal(c->triangles[i].triangle);
-								m.vn = m.n;
-								m.m = LambertMaterial(c->triangles[i].color);
-								m.isback = intersection->isback;
-
-								return m;
-							};
-							tmin = intersection->tmin;
-						}
-					}
-				}
-			} else if (auto *d = boost::get<DiscLight>(&scene.objects[i])) {
-				//if (auto intersection = light->intersect(ray, tmin)) {
-				//	min_intersection = [intersection]() {
-				//		MicroSurfaceIntersection msi;
-				//		msi.surface = *intersection;
-				//		return msi;
-				//	};
-				//}
-				if (auto intersection = intersect(ray, d->disc)) {
-					if (intersection->tmin < tmin) {
-						min_intersection = [ray, intersection, d]() {
-							MicroSurface m;
-							m.p = intersection->intersect_position(ray);
-							m.n = intersection->intersect_normal;
-							m.vn = m.n;
-							m.m = intersection->isback ? EmissiveMaterial(Vec3(0.0)) : d->emissive;
-							m.isback = intersection->isback;
-
-							return m;
-						};
-						tmin = intersection->tmin;
-					}
-				}
-				/*Plane plane = make_plane_pn(Vec3(0.0, r->y, 0.0), Vec3(0.0, -1.0, 0.0));
-				if (auto intersection = intersect(ray, plane)) {
-					auto p = intersection->intersect_position(ray);
-					if (-r->size * 0.5 < p.x && p.x < r->size * 0.5) {
-						if (-r->size * 0.5 < p.z && p.z < r->size * 0.5) {
-							if (intersection->tmin < tmin) {
-								min_intersection = [p, ray, intersection, i, r]() {
-									MicroSurface m;
-									m.p = p;
-									m.n = intersection->intersect_normal;
-									m.vn = m.n;
-									m.m = intersection->isback ? EmissiveMaterial(Vec3(0.0)) : r->emissive_material();
-									m.isback = intersection->isback;
-
-									MicroSurfaceIntersection msi;
-									msi.surface = m;
-									return msi;
-								};
-								tmin = intersection->tmin;
-							}
-						}
-					}
-				}*/
+			if (auto *intersectable = boost::polymorphic_strict_get<ISceneIntersectable>(&scene.objects[i])) {
+				intersectable->intersect(ray, min_intersection, tmin);
 			}
 		}
+
 		if (tmin != std::numeric_limits<double>::max()) {
 			return min_intersection.evaluate();
 		}
