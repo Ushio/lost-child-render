@@ -995,12 +995,13 @@ void RayTracerApp::setup()
 
 		light.uniform_triangle.set_triangle(triangles);
 		light.uniform_triangle.build();
+		light.bvh.set_triangle(triangles);
+		light.bvh.build();
 
 		_scene.add(light);
 	}
 
 	_scene.finalize();
-
 }
 
 void RayTracerApp::mouseDown(MouseEvent event)

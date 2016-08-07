@@ -34,7 +34,7 @@ namespace lc {
 		auto d = ray.d;
 
 		// set to -FLT_MAX to get first hit on line
-		double tmin = 0.0f;
+		double tmin = 0.0;
 
 		// set to max distance ray can travel (for segment)
 		double tmax = std::numeric_limits<double>::max();

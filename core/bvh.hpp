@@ -9,7 +9,7 @@
 
 namespace lc {
 	static const double kCOST_INTERSECT_AABB = 1.0;
-	static const double kCOST_INTERSECT_TRIANGLE = 1.5;
+	static const double kCOST_INTERSECT_TRIANGLE = 2.0;
 
 	inline double surface_area(const AABB &aabb) {
 		Vec3 size = aabb.max_position - aabb.min_position;
@@ -183,9 +183,11 @@ namespace lc {
 			std::swap(_nodes[node_index].indices, std::vector<int>());
 
 			if (_nodes[child_L_index].indices.empty() == false) {
+				// printf("L [%d]: %d\n",depth, (int)_nodes[child_L_index].indices.size());
 				this->build_recursive(depth + 1, child_L);
 			}
 			if (_nodes[child_R_index].indices.empty() == false) {
+				// printf("R [%d]: %d\n", depth, (int)_nodes[child_R_index].indices.size());
 				this->build_recursive(depth + 1, child_R);
 			}
 		}
@@ -197,7 +199,10 @@ namespace lc {
 			int triangle_index = -1;
 		};
 
-		boost::optional<BVHIntersection> intersect(Ray ray, int parent = 1, int depth = 0, double tmin_already = std::numeric_limits<double>::max()) const {
+		boost::optional<BVHIntersection> intersect(Ray ray, double tmin_already = std::numeric_limits<double>::max()) const {
+			return this->intersect(ray, 1, 0, tmin_already);
+		}
+		boost::optional<BVHIntersection> intersect(Ray ray, int parent, int depth, double tmin_already) const {
 			// 最大深度を超えたら終わりにする
 			if (_depth_count <= depth) {
 				return boost::none;
