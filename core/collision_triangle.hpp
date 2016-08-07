@@ -22,11 +22,11 @@ namespace lc {
 		Vec2 uv;
 	};
 	inline boost::optional<TriangleIntersection> intersect(const Ray &ray, const Triangle &triangle) {
-		Vec3 v0 = triangle.v[0];
-		Vec3 v1 = triangle.v[1];
-		Vec3 v2 = triangle.v[2];
+		const Vec3 &v0 = triangle[0];
+		const Vec3 &v1 = triangle[1];
+		const Vec3 &v2 = triangle[2];
 
-		Vec3 baryPosition;
+		Vec3 baryPosition(glm::uninitialize);
 
 		Vec3 e1 = v1 - v0;
 		Vec3 e2 = v2 - v0;
