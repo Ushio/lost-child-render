@@ -1,8 +1,7 @@
 ﻿#pragma once
 
 #include <boost/variant.hpp>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
+#include <boost/variant/polymorphic_get.hpp>
 #include <boost/range.hpp>
 #include <boost/range/join.hpp>
 
@@ -15,6 +14,7 @@
 #include "collision_disc.hpp"
 #include "material.hpp"
 #include "importance.hpp"
+#include "lazy_value.hpp"
 
 namespace lc {
 	//struct LightSurface {
@@ -49,6 +49,7 @@ namespace lc {
 	//	double y = 0.0;
 	//	Vec3 color;
 	//};
+	//typedef LazyValue<MicroSurface, 256>
 
 	struct OnLight {
 		Vec3 p;
@@ -59,6 +60,8 @@ namespace lc {
 	public:
 		virtual ~ILight() {}
 		virtual Sample<OnLight> sample(DefaultEngine &e) const = 0;
+		virtual double getArea() const = 0;
+		virtual boost::optional<MicroSurface> intersect(const Ray &ray, double &tmin) const = 0;
 	};
 
 	struct DiscLight : public ILight {
@@ -66,21 +69,44 @@ namespace lc {
 
 		}
 
-		virtual Sample<OnLight> sample(DefaultEngine &e) const {
+		Sample<OnLight> sample(DefaultEngine &e) const override {
 			HemisphereTransform hemisphereTransform(disc.plane.n);
 			auto circle = e.on_circle() * disc.radius;
 			auto p = disc.origin + hemisphereTransform.transform(Vec3(circle.x, 0.0, circle.y));
 
 			Sample<OnLight> s;
-			s.pdf = 1.0 / (glm::pi<double>() * disc.radius * disc.radius);
+			s.pdf = 1.0 / this->getArea();
 			s.value.p = p;
 			s.value.n = disc.plane.n;
 			s.value.emissive = emissive;
 			return s;
 		}
+		double getArea() const override {
+			return glm::pi<double>() * disc.radius * disc.radius;
+		}
+
+		boost::optional<MicroSurface> intersect(const Ray &ray, double &tmin) const override {
+			if (auto intersection = lc::intersect(ray, disc)) {
+				if (intersection->tmin < tmin) {
+					MicroSurface m;
+					m.p = intersection->intersect_position(ray);
+					m.n = intersection->intersect_normal;
+					m.vn = m.n;
+					m.m = intersection->isback ? EmissiveMaterial(Vec3(0.0)) : emissive;
+					m.isback = intersection->isback;
+
+					tmin = intersection->tmin;
+				}
+			}
+		}
 
 		Disc disc;
 		EmissiveMaterial emissive;
+		bool doubleSided = false;
+	};
+
+	struct PolygonLight {
+
 	};
 
 	struct SphereObject {
@@ -219,61 +245,12 @@ namespace lc {
 		return sr;
 	}
 
-
-	template <class T, int MAX_SIZE>
-	struct LazyValue {
-		LazyValue() {}
-		LazyValue(const LazyValue &) = delete;
-		void operator=(const LazyValue &) = delete;
-
-		~LazyValue() {
-			if (_hasValue) {
-				static_cast<HolderErase *>(_storage.address())->~HolderErase();
-			}
-		}
-
-		struct HolderErase {
-			virtual ~HolderErase() {}
-			virtual T evaluate() const = 0;
-		};
-
-		template <class F>
-		struct Holder : public HolderErase {
-			Holder(const F &f) :_f(f) {}
-			T evaluate() const {
-				return _f();
-			}
-			F _f;
-		};
-
-		template <class F>
-		void operator=(const F &f) {
-			static_assert(sizeof(F) <= StorageType::size, "low memory");
-			if (_hasValue) {
-				static_cast<HolderErase *>(_storage.address())->~HolderErase();
-			}
-			new (_storage.address()) Holder<F>(f);
-			_hasValue = true;
-		}
-		bool hasValue() const {
-			return _hasValue;
-		}
-		T evaluate() const {
-			return static_cast<const HolderErase *>(_storage.address())->evaluate();
-		}
-
-		typedef boost::aligned_storage<MAX_SIZE, 8> StorageType;
-
-		bool _hasValue = false;
-		StorageType _storage;
-	};
-
-	struct MicroSurfaceIntersection {
-		MicroSurface surface;
-	};
-	inline boost::optional<MicroSurfaceIntersection> intersect(const Ray &ray, const Scene &scene) {
+	//struct MicroSurfaceIntersection {
+	//	MicroSurface surface;
+	//};
+	inline boost::optional<MicroSurface> intersect(const Ray &ray, const Scene &scene) {
 		double tmin = std::numeric_limits<double>::max();
-		LazyValue<MicroSurfaceIntersection, 256> min_intersection;
+		LazyValue<MicroSurface, 256> min_intersection;
 
 		for (int i = 0; i < scene.objects.size(); ++i) {
 			if (auto *s = boost::get<SphereObject>(&scene.objects[i])) {
@@ -287,9 +264,7 @@ namespace lc {
 							m.m = s->material;
 							m.isback = intersection->isback;
 
-							MicroSurfaceIntersection msi;
-							msi.surface = m;
-							return msi;
+							return m;
 						};
 						tmin = intersection->tmin;
 					}
@@ -306,15 +281,20 @@ namespace lc {
 								m.m = LambertMaterial(c->triangles[i].color);
 								m.isback = intersection->isback;
 
-								MicroSurfaceIntersection msi;
-								msi.surface = m;
-								return msi;
+								return m;
 							};
 							tmin = intersection->tmin;
 						}
 					}
 				}
 			} else if (auto *d = boost::get<DiscLight>(&scene.objects[i])) {
+				//if (auto intersection = light->intersect(ray, tmin)) {
+				//	min_intersection = [intersection]() {
+				//		MicroSurfaceIntersection msi;
+				//		msi.surface = *intersection;
+				//		return msi;
+				//	};
+				//}
 				if (auto intersection = intersect(ray, d->disc)) {
 					if (intersection->tmin < tmin) {
 						min_intersection = [ray, intersection, d]() {
@@ -325,9 +305,7 @@ namespace lc {
 							m.m = intersection->isback ? EmissiveMaterial(Vec3(0.0)) : d->emissive;
 							m.isback = intersection->isback;
 
-							MicroSurfaceIntersection msi;
-							msi.surface = m;
-							return msi;
+							return m;
 						};
 						tmin = intersection->tmin;
 					}

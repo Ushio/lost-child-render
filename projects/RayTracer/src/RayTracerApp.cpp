@@ -90,7 +90,7 @@ namespace lc {
 			return false;
 		}
 		if (auto intersection = intersect(Ray(p0, d / glm::sqrt(lengthSquared)), scene)) {
-			return glm::distance2(intersection->surface.p, p1) < glm::epsilon<double>();
+			return glm::distance2(intersection->p, p1) < glm::epsilon<double>();
 		}
 		return false;
 	}
@@ -133,7 +133,7 @@ namespace lc {
 			if (!intersection) {
 				break;
 			}
-			auto surface = intersection->surface;
+			auto surface = *intersection;
 
 			Vec3 omega_o = -curr_ray.d;
 			if (auto lambert = boost::get<LambertMaterial>(&surface.m)) {
@@ -406,7 +406,7 @@ namespace lc {
 			if (auto lambert = boost::get<LambertMaterial>(&camera_node.surface.m)) {
 				auto sample_ray = direct_sample_ray(scene, camera_node.surface.p, engine);
 				if (auto direct_intersect = intersect(sample_ray.value, scene)) {
-					if (auto emissive = boost::get<EmissiveMaterial>(&direct_intersect->surface.m)) {
+					if (auto emissive = boost::get<EmissiveMaterial>(&direct_intersect->m)) {
 						double pdf = camera_node.pdf * sample_ray.pdf;
 						Vec3 omega_i = sample_ray.value.d;
 						double brdf = glm::one_over_pi<double>();
@@ -420,7 +420,7 @@ namespace lc {
 			} else if(auto cook = boost::get<CookTorranceMaterial>(&camera_node.surface.m)) {
 				auto sample_ray = direct_sample_ray(scene, camera_node.surface.p, engine);
 				if (auto direct_intersect = intersect(sample_ray.value, scene)) {
-					if (auto emissive = boost::get<EmissiveMaterial>(&direct_intersect->surface.m)) {
+					if (auto emissive = boost::get<EmissiveMaterial>(&direct_intersect->m)) {
 						double pdf = camera_node.pdf * sample_ray.pdf;
 
 						Vec3 n = camera_node.surface.n;
