@@ -316,12 +316,12 @@ namespace lc {
 			return (v.x + v.y + v.z) * (1.0 / 3.0);
 		};
 
-		double implicit_weight = glm::pow(implicit_contribution.pdf * mu(implicit_contribution.value), 2.0);
+		double implicit_weight = glm::pow(implicit_contribution.pdf, 2.0);
 		Vec3 implicit = implicit_contribution.value * implicit_weight / explicit_contributions.size();
 
 		for (int i = 0; i < explicit_contributions.size(); ++i) {
 			auto explicit_contribution = explicit_contributions[i];
-			double explicit_weight = glm::pow(explicit_contribution.pdf * mu(explicit_contribution.value), 2.0);
+			double explicit_weight = glm::pow(explicit_contribution.pdf, 2.0);
 
 			Vec3 sum = explicit_contribution.value * explicit_weight + implicit;
 			double weight_sum = implicit_weight + explicit_weight;
