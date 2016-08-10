@@ -1,10 +1,13 @@
 ﻿#pragma once
 
+#include <vector>
+
 #include "render_type.hpp"
 #include "constants.hpp"
 #include "collision.hpp"
 #include "collision_aabb.hpp"
 #include "collision_triangle.hpp"
+
 #include <boost/optional.hpp>
 #include <boost/range.hpp>
 

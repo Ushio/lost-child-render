@@ -1,4 +1,6 @@
 ﻿#pragma once
+
+#include <array>
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 #include <glm/gtx/simd_vec4.hpp>
