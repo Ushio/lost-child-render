@@ -51,7 +51,7 @@ namespace lc {
 
 			Uniform u;
 			u.p = uniform_on_triangle(e, _triangles[index]);
-			u.index = index;
+			u.index = (int)index;
 			return u;
 		}
 

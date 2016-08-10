@@ -126,11 +126,11 @@ namespace lc {
 
 		Vec3 coef(1.0);
 		double pdf = 1.0;
-		int diffusion_count = 0;
+		double diffusion_count = 0;
 		Vec3 diffusion(1.0);
 
 		int max_trace = 5;
-		int max_diffusion_count = 3;
+		double max_diffusion_count = 3.0;
 		path.nodes.reserve(max_trace);
 
 		for (int i = 0; i < max_trace && diffusion_count < max_diffusion_count; ++i) {
@@ -142,7 +142,7 @@ namespace lc {
 
 			Vec3 omega_o = -curr_ray.d;
 			if (auto lambert = boost::get<LambertMaterial>(&surface.m)) {
-				diffusion_count++;
+				diffusion_count += 1.0;
 
 				auto eps = std::make_tuple(engine.continuous(), engine.continuous());
 				Sample<Vec3> lambert_sample = importance_lambert(eps, surface.n);
