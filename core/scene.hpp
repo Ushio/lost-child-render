@@ -274,10 +274,8 @@ namespace lc {
 		}
 		bool is_visible(const Ray &ray, double tmin_target) const override {
 			for (int i = 0; i < triangles.size(); ++i) {
-				if (auto intersection = lc::intersect(ray, triangles[i].triangle)) {
-					if (intersection->tmin < tmin_target) {
-						return false;
-					}
+				if (lc::is_visible(ray, triangles[i].triangle, tmin_target) == false) {
+					return false;
 				}
 			}
 			return true;

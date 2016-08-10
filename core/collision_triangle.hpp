@@ -21,7 +21,8 @@ namespace lc {
 		bool isback = false;
 		Vec2 uv;
 	};
-	inline boost::optional<TriangleIntersection> intersect(const Ray &ray, const Triangle &triangle) {
+
+	inline boost::optional<TriangleIntersection> intersect(const Ray &ray, const Triangle &triangle, double tmin = std::numeric_limits<double>::max()) {
 		const Vec3 &v0 = triangle[0];
 		const Vec3 &v1 = triangle[1];
 		const Vec3 &v2 = triangle[2];
@@ -38,23 +39,19 @@ namespace lc {
 		double f = 1.0 / a;
 
 		Vec3 s = ray.o - v0;
-		baryPosition.x = f * glm::dot(s, p);
-		if (baryPosition.x < 0.0)
-			return boost::none;
-		if (baryPosition.x > 1.0)
-			return boost::none;
 
 		Vec3 q = glm::cross(s, e1);
-		baryPosition.y = f * glm::dot(ray.d, q);
-		if (baryPosition.y < 0.0)
-			return boost::none;
-		if (baryPosition.y + baryPosition.x > 1.0)
-			return boost::none;
-
 		baryPosition.z = f * glm::dot(e2, q);
+		if (baryPosition.z < 0.0 || tmin < baryPosition.z) {
+			return boost::none;
+		}
 
-		bool isIntersect = baryPosition.z >= 0.0;
-		if (isIntersect == false) {
+		baryPosition.x = f * glm::dot(s, p);
+		if (baryPosition.x < 0.0 || baryPosition.x > 1.0)
+			return boost::none;
+
+		baryPosition.y = f * glm::dot(ray.d, q);
+		if (baryPosition.y < 0.0 || baryPosition.y + baryPosition.x > 1.0) {
 			return boost::none;
 		}
 
@@ -66,4 +63,41 @@ namespace lc {
 		intersection.uv = Vec2(baryPosition.x, baryPosition.y);
 		return intersection;
 	}
+
+	inline bool is_visible(const Ray &ray, const Triangle &triangle, double tmin_target) {
+		const Vec3 &v0 = triangle[0];
+		const Vec3 &v1 = triangle[1];
+		const Vec3 &v2 = triangle[2];
+
+		Vec3 baryPosition(glm::uninitialize);
+
+		Vec3 e1 = v1 - v0;
+		Vec3 e2 = v2 - v0;
+
+		Vec3 p = glm::cross(ray.d, e2);
+
+		double a = glm::dot(e1, p);
+
+		double f = 1.0 / a;
+
+		Vec3 s = ray.o - v0;
+
+		Vec3 q = glm::cross(s, e1);
+		baryPosition.z = f * glm::dot(e2, q);
+		if (baryPosition.z < 0.0 || tmin_target < baryPosition.z) {
+			return true;
+		}
+
+		baryPosition.x = f * glm::dot(s, p);
+		if (baryPosition.x < 0.0 || baryPosition.x > 1.0)
+			return true;
+
+		baryPosition.y = f * glm::dot(ray.d, q);
+		if (baryPosition.y < 0.0 || baryPosition.y + baryPosition.x > 1.0) {
+			return true;
+		}
+
+		return false;
+	}
+
 }

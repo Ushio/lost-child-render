@@ -232,7 +232,6 @@ namespace lc {
 						double tmin = r ? r->tmin : tmin_already;
 						if (intersection->tmin < tmin) {
 							r = BVHIntersection(*intersection, index);
-							r->triangle_index = index;
 						}
 					}
 				}
@@ -280,7 +279,7 @@ namespace lc {
 				boost::optional<BVHIntersection> r;
 				for (auto index : _nodes[node_index].indices) {
 					const Triangle &triangle = _triangles[index];
-					if (auto intersection = lc::intersect(ray, triangle)) {
+					if (auto intersection = lc::intersect(ray, triangle, tmin_target)) {
 						if (intersection->tmin < tmin_target) {
 							return false;
 						}
