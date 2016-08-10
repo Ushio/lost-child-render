@@ -228,6 +228,7 @@ namespace lc {
 			Path::Node camera_node = camera_path.nodes[ci];
 			if (auto lambert = boost::get<LambertMaterial>(&camera_node.surface.m)) {
 				auto sample = direct_light_sample(scene, camera_node.surface.p, engine);
+				// TODO emissiveが0ならやらなくていい？
 				if (is_visible(sample->ray, scene, sample->tmin - kEPS)) {
 					auto emissive = sample->onLight.emissive;
 					double pdf = camera_node.pdf * sample.pdf;
@@ -235,7 +236,6 @@ namespace lc {
 					double brdf = glm::one_over_pi<double>();
 					double cos_term = glm::max(glm::dot(camera_node.surface.n, omega_i), 0.0);
 					Vec3 this_coef = lambert->albedo * brdf * cos_term;
-
 					Sample<Vec3> contrib;
 					contrib.value = this_coef * emissive.color * camera_node.coef / glm::max(pdf, kEPS);
 					contrib.pdf = pdf;
@@ -244,33 +244,40 @@ namespace lc {
 			}
 			else if (auto cook = boost::get<CookTorranceMaterial>(&camera_node.surface.m)) {
 				auto sample = direct_light_sample(scene, camera_node.surface.p, engine);
-				if (is_visible(sample->ray, scene, sample->tmin - kEPS)) {
-					auto emissive = sample->onLight.emissive;
-					double pdf = camera_node.pdf * sample.pdf;
 
-					Vec3 n = camera_node.surface.n;
-					Vec3 omega_o = camera_node.omega_o;
-					Vec3 omega_i = sample->ray.d;
-					double cos_term = glm::max(glm::dot(n, omega_i), 0.0);
-					double f = lc::fresnel(cos_term, cook->fesnel_coef);
+				auto emissive = sample->onLight.emissive;
+				double pdf = camera_node.pdf * sample.pdf;
 
-					double brdf = 0.0;
-					if (engine.continuous() < f) {
-						Vec3 h = glm::normalize(omega_i + omega_o);
-						double g = G(omega_i, omega_o, h, n, cook->roughness);
-						double d = ggx_d(glm::dot(h, n), cook->roughness);
-						brdf = d * g / glm::max(4.0 * glm::dot(omega_o, n) * cos_term, kEPS);
+				Vec3 n = camera_node.surface.n;
+				Vec3 omega_o = camera_node.omega_o;
+				Vec3 omega_i = sample->ray.d;
+				double cos_term = glm::max(glm::dot(n, omega_i), 0.0);
+				double f = lc::fresnel(cos_term, cook->fesnel_coef);
+
+				double brdf = 0.0;
+				if (engine.continuous() < f) {
+					Vec3 h = glm::normalize(omega_i + omega_o);
+					double g = G(omega_i, omega_o, h, n, cook->roughness);
+					double d = ggx_d(glm::dot(h, n), cook->roughness);
+					brdf = d * g / glm::max(4.0 * glm::dot(omega_o, n) * cos_term, kEPS);
+				}
+				else {
+					brdf = glm::one_over_pi<double>();
+				}
+
+				Vec3 this_coef = cook->albedo * brdf * cos_term;
+
+				double max_coef = glm::max(glm::max(this_coef.r, this_coef.g), this_coef.b);
+				double nee_probability = glm::clamp(max_coef * 1.5, 0.01, 1.0);
+				if (engine.continuous() < nee_probability) {
+					if (is_visible(sample->ray, scene, sample->tmin - kEPS)) {
+						pdf *= nee_probability;
+
+						Sample<Vec3> contrib;
+						contrib.value = this_coef * emissive.color * camera_node.coef / glm::max(pdf, kEPS);
+						contrib.pdf = pdf;
+						explicit_contributions.push_back(contrib);
 					}
-					else {
-						brdf = glm::one_over_pi<double>();
-					}
-
-					Vec3 this_coef = cook->albedo * brdf * cos_term;
-
-					Sample<Vec3> contrib;
-					contrib.value = this_coef * emissive.color * camera_node.coef / glm::max(pdf, kEPS);
-					contrib.pdf = pdf;
-					explicit_contributions.push_back(contrib);
 				}
 			}
 			if (is_term) {

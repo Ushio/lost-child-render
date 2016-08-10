@@ -219,7 +219,7 @@ void RayTracerApp::setup()
 	//_scene.add(spec);
 
 	//auto grass = lc::SphereObject(
-	//	lc::Sphere(lc::Vec3(10.0, -15, 10.0), 10.0),
+	//	lc::Sphere(lc::Vec3(10.0, -10, 10.0), 7.0),
 	//	lc::RefractionMaterial(1.4)
 	//);
 	//_scene.add(grass);
