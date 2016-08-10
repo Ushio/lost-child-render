@@ -29,6 +29,7 @@ namespace lc {
 	public:
 		virtual ~ISceneIntersectable() {}
 		virtual void intersect(const Ray &ray, LazyMicroSurface &surface, double &tmin) const = 0;
+		virtual bool is_visible(const Ray &ray, double tmin_target) const = 0;
 	};
 	class ILight : public ISceneIntersectable {
 	public:
@@ -98,6 +99,14 @@ namespace lc {
 				}
 			}
 		}
+		bool is_visible(const Ray &ray, double tmin_target) const override {
+			if (auto intersection = lc::intersect(ray, disc)) {
+				if (intersection->tmin < tmin_target) {
+					return false;
+				}
+			}
+			return true;
+		}
 
 		Disc disc;
 		EmissiveMaterial emissive;
@@ -146,30 +155,9 @@ namespace lc {
 					tmin = intersection->tmin;
 				}
 			}
-			
-
-			/*
-			for (int i = 0; i < uniform_triangle._triangles.size(); ++i) {
-				if (auto intersection = lc::intersect(ray, uniform_triangle._triangles[i])) {
-					if (intersection->tmin < tmin) {
-						auto triangle = uniform_triangle._triangles[i];
-						EmissiveMaterial emissive_front_value = emissive_front;
-						EmissiveMaterial emissive_back_value = emissive_back;
-
-						surface = [ray, intersection, triangle, emissive_front_value, emissive_back_value]() {
-							MicroSurface m;
-							m.p = intersection->intersect_position(ray);
-							m.n = intersection->intersect_normal(triangle);
-							m.vn = m.n;
-							m.m = intersection->isback ? emissive_back_value : emissive_front_value;
-							m.isback = intersection->isback;
-							return m;
-						};
-						tmin = intersection->tmin;
-					}
-				}
-			}
-			*/
+		}
+		bool is_visible(const Ray &ray, double tmin_target) const override {
+			return bvh.is_visible(ray, tmin_target);
 		}
 
 		EmissiveMaterial emissive_front;
@@ -201,6 +189,14 @@ namespace lc {
 					tmin = intersection->tmin;
 				}
 			}
+		}
+		bool is_visible(const Ray &ray, double tmin_target) const override {
+			if (auto intersection = lc::intersect(ray, sphere)) {
+				if (intersection->tmin < tmin_target) {
+					return false;
+				}
+			}
+			return true;
 		}
 	};
 
@@ -275,6 +271,16 @@ namespace lc {
 					}
 				}
 			}
+		}
+		bool is_visible(const Ray &ray, double tmin_target) const override {
+			for (int i = 0; i < triangles.size(); ++i) {
+				if (auto intersection = lc::intersect(ray, triangles[i].triangle)) {
+					if (intersection->tmin < tmin_target) {
+						return false;
+					}
+				}
+			}
+			return true;
 		}
 	};
 
@@ -364,12 +370,14 @@ namespace lc {
 
 		for (int i = 0; i < scene.objects.size(); ++i) {
 			if (auto *intersectable = boost::polymorphic_strict_get<ISceneIntersectable>(&scene.objects[i])) {
-				intersectable->intersect(ray, min_intersection, tmin);
-
-				// tmin_targetよりも手前に何か存在していた
-				if (tmin + 0.00001 < tmin_target) {
+				if (intersectable->is_visible(ray, tmin_target) == false) {
 					return false;
 				}
+				//intersectable->intersect(ray, min_intersection, tmin);
+				//// tmin_targetよりも手前に何か存在していた
+				//if (tmin + 0.00001 < tmin_target) {
+				//	return false;
+				//}
 			}
 		}
 		return true;

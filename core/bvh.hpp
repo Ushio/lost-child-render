@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "render_type.hpp"
+#include "constants.hpp"
 #include "collision.hpp"
 #include "collision_aabb.hpp"
 #include "collision_triangle.hpp"
@@ -249,6 +250,51 @@ namespace lc {
 				return L;
 			}
 			return L->tmin < R->tmin ? L : R;
+		}
+
+		bool is_visible(const Ray &ray, double tmin_target) const {
+			return this->is_visible(ray, 1, 0, tmin_target);
+		}
+		bool is_visible(const Ray &ray, int parent, int depth, double tmin_target) const {
+			// 最大深度を超えたら終わりにする
+			if (_depth_count <= depth) {
+				return true;
+			}
+
+			int node_index = parent - 1;
+			auto intersection = lc::intersect(ray, _nodes[node_index].aabb);
+			if (!intersection) {
+				return true;
+			}
+
+			// すでに判明しているtminが手前にあるなら、後半は判定する必要はない
+			if (tmin_target < intersection->tmin) {
+				return true;
+			}
+
+			// 終端までやってきたので所属するポリゴンに総当たりして終了
+			if (_nodes[node_index].isTerminal()) {
+				boost::optional<BVHIntersection> r;
+				for (auto index : _nodes[node_index].indices) {
+					const Triangle &triangle = _triangles[index];
+					if (auto intersection = lc::intersect(ray, triangle)) {
+						if (intersection->tmin < tmin_target) {
+							return false;
+						}
+					}
+				}
+				return true;
+			}
+			int child_L = left_child(parent);
+			int child_R = right_child(parent);
+			if (this->is_visible(ray, child_L, depth + 1, tmin_target) == false) {
+				return false;
+			}
+			if (this->is_visible(ray, child_R, depth + 1, tmin_target) == false) {
+				return false;
+			}
+
+			return true;
 		}
 
 		int depth_count() const {

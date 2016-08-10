@@ -417,7 +417,7 @@ namespace lc {
 			Path::Node camera_node = camera_path.nodes[ci];
 			if (auto lambert = boost::get<LambertMaterial>(&camera_node.surface.m)) {
 				auto sample = direct_light_sample(scene, camera_node.surface.p, engine);
-				if (is_visible(sample->ray, scene, sample->tmin)) {
+				if (is_visible(sample->ray, scene, sample->tmin - kEPS)) {
 					auto emissive = sample->onLight.emissive;
 					double pdf = camera_node.pdf * sample.pdf;
 					Vec3 omega_i = sample->ray.d;
@@ -430,7 +430,7 @@ namespace lc {
 				}
 			} else if(auto cook = boost::get<CookTorranceMaterial>(&camera_node.surface.m)) {
 				auto sample = direct_light_sample(scene, camera_node.surface.p, engine);
-				if (is_visible(sample->ray, scene, sample->tmin)) {
+				if (is_visible(sample->ray, scene, sample->tmin - kEPS)) {
 					auto emissive = sample->onLight.emissive;
 					double pdf = camera_node.pdf * sample.pdf;
 
