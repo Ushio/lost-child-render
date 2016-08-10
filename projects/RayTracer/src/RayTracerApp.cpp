@@ -19,6 +19,7 @@
 #include <boost/format.hpp>
 #include <boost/variant.hpp>
 
+#include "fixed_vector.hpp"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
@@ -138,9 +139,14 @@ void RayTracerApp::setup()
 {
 	_controlfp_s(NULL, _EM_UNDERFLOW | _EM_OVERFLOW | _EM_ZERODIVIDE | _EM_INEXACT, _MCW_EM);
 
-	//double b = 0.0;
-	//double a = 0.0;
-	//double aaa = a / b;
+	lc::fixed_vector<std::string, 5> tst;
+	tst.push_back("a");
+	tst.push_back("a");
+	tst.pop_back();
+	tst.push_back("c");
+	for (auto p : tst) {
+		std::cout << p << std::endl;
+	}
 
 	ui::initialize();
 
@@ -259,7 +265,7 @@ void RayTracerApp::setup()
 	//		lc::Vec3(0.0, -1.0, 0.0),
 	//		7
 	//	);
-	//	light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
+	//	light.emissive = lc::EmissiveMaterial(lc::Vec3(5.0));
 	//	light.doubleSided = false;
 	//	_scene.add(light);
 	//}
@@ -271,7 +277,18 @@ void RayTracerApp::setup()
 	//		5
 	//	);
 	//	light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
-	//	light.doubleSided = true;
+	//	light.doubleSided = false;
+	//	_scene.add(light);
+	//}
+	//{
+	//	auto light = lc::DiscLight();
+	//	light.disc = lc::make_disc(
+	//		lc::Vec3(-20.0f, 10.0, 0.0),
+	//		glm::normalize(lc::Vec3( 1.0, -1.0, 0.0)),
+	//		5
+	//	);
+	//	light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
+	//	light.doubleSided = false;
 	//	_scene.add(light);
 	//}
 
@@ -279,8 +296,8 @@ void RayTracerApp::setup()
 	// ポリゴンライト
 	{
 		auto light = lc::PolygonLight();
-		light.emissive_front = lc::Vec3(5.0, 5.0, 0.5);
-		light.emissive_back = lc::Vec3(0.5, 10.0, 10.0);
+		light.emissive_front = lc::Vec3(3.0, 3.0, 0.5);
+		light.emissive_back = lc::Vec3(0.5, 5.0, 5.0);
 
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
@@ -301,21 +318,49 @@ void RayTracerApp::setup()
 			triangles.push_back(tri);
 		}
 
-		// デフォルトは奥を向いている？
-		for (int i = 0; i < triangles.size(); ++i) {
-			for (int j = 0; j < 3; ++j) {
-				triangles[i][j] *= 10.0;
-				triangles[i][j] = glm::rotateX(triangles[i][j], glm::radians(40.0));
-				triangles[i][j] = glm::rotateY(triangles[i][j], glm::radians(70.0));
+		{
+			std::vector<lc::Triangle> tris = triangles;
+
+			// デフォルトは奥を向いている？
+			for (int i = 0; i < tris.size(); ++i) {
+				for (int j = 0; j < 3; ++j) {
+					tris[i][j] *= 15.0;
+					tris[i][j] = glm::rotateX(tris[i][j], glm::radians(40.0));
+					tris[i][j] = glm::rotateY(tris[i][j], glm::radians(70.0));
+
+					tris[i][j] += lc::Vec3(-10.0, 0.0, 0.0);
+				}
 			}
+
+			light.uniform_triangle.set_triangle(tris);
+			light.uniform_triangle.build();
+			light.bvh.set_triangle(tris);
+			light.bvh.build();
+
+			_scene.add(light);
 		}
 
-		light.uniform_triangle.set_triangle(triangles);
-		light.uniform_triangle.build();
-		light.bvh.set_triangle(triangles);
-		light.bvh.build();
+		{
+			std::vector<lc::Triangle> tris = triangles;
 
-		_scene.add(light);
+			// デフォルトは奥を向いている？
+			for (int i = 0; i < tris.size(); ++i) {
+				for (int j = 0; j < 3; ++j) {
+					tris[i][j] *= 10.0;
+					tris[i][j] = glm::rotateX(tris[i][j], glm::radians(40.0));
+					tris[i][j] = glm::rotateY(tris[i][j], glm::radians(-30.0));
+
+					tris[i][j] += lc::Vec3( 11.0, 10.0, -5.0);
+				}
+			}
+
+			light.uniform_triangle.set_triangle(tris);
+			light.uniform_triangle.build();
+			light.bvh.set_triangle(tris);
+			light.bvh.build();
+
+			_scene.add(light);
+		}
 	}
 
 	_scene.finalize();

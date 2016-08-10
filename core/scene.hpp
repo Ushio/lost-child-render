@@ -336,9 +336,9 @@ namespace lc {
 		ds->tmin = dist;
 		
 		// 法線を調整
-		if (0.0 < glm::dot(ds->onLight.n, dir)) {
-			ds->onLight.n = -ds->onLight.n;
-		}
+		//if (0.0 < glm::dot(ds->onLight.n, dir)) {
+		//	ds->onLight.n = -ds->onLight.n;
+		//}
 
 		return ds;
 	}

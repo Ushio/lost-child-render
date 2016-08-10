@@ -15,6 +15,7 @@
 #include "scene.hpp"
 #include "brdf.hpp"
 #include "constants.hpp"
+#include "fixed_vector.hpp"
 
 namespace lc {
 	struct AccumlationBuffer {
@@ -57,7 +58,7 @@ namespace lc {
 
 			MicroSurface surface;
 		};
-		std::vector<Node> nodes;
+		fixed_vector<Node, kMaxDepth> nodes;
 	};
 
 	inline Path path_trace(const Ray &ray, const Scene &scene, DefaultEngine &engine) {
@@ -67,13 +68,12 @@ namespace lc {
 		Vec3 coef(1.0);
 		double pdf = 1.0;
 		double diffusion_count = 0;
-		Vec3 diffusion(1.0);
+		// Vec3 diffusion(1.0);
 
-		int max_trace = 5;
-		double max_diffusion_count = 3.0;
-		path.nodes.reserve(max_trace);
+		double max_diffusion_count = 4.0;
+		// path.nodes.reserve(max_trace);
 
-		for (int i = 0; i < max_trace && diffusion_count < max_diffusion_count; ++i) {
+		for (int i = 0; i < kMaxDepth && diffusion_count < max_diffusion_count; ++i) {
 			auto intersection = intersect(curr_ray, scene);
 			if (!intersection) {
 				break;
@@ -191,18 +191,6 @@ namespace lc {
 				continue;
 			}
 			else if (auto emissive = boost::get<EmissiveMaterial>(&surface.m)) {
-				//if (glm::dot(surface.n, curr_ray.d) < 0.0) {
-				//	Path::Node node;
-				//	node.coef = coef;
-				//	node.pdf = pdf;
-				//	// node.omega_i = 存在しない
-				//	node.omega_o = -curr_ray.d;
-				//	node.surface = surface;
-				//	path.nodes.push_back(node);
-				//}
-				//else {
-				//	// 裏面はいったん気にしないことにする
-				//}
 				Path::Node node;
 				node.coef = coef;
 				node.pdf = pdf;
@@ -213,8 +201,6 @@ namespace lc {
 
 				break;
 			}
-
-
 		}
 		return path;
 	}
@@ -233,18 +219,11 @@ namespace lc {
 			return emissive->color;
 		}
 
-		Vec3 color;
+		Sample<Vec3> implicit_contribution;
+		fixed_vector<Sample<Vec3>, kMaxDepth> explicit_contributions;
 
 		for (int ci = 0; ci < camera_path.nodes.size(); ++ci) {
 			bool is_term = ci + 1 == camera_path.nodes.size();
-
-			// 暗黙的寄与
-			Vec3   implicit_contribution;
-			double implicit_pdf = 0.0;
-
-			// 明示的寄与
-			Vec3   explicit_contribution;
-			double explicit_pdf = 0.0;
 
 			Path::Node camera_node = camera_path.nodes[ci];
 			if (auto lambert = boost::get<LambertMaterial>(&camera_node.surface.m)) {
@@ -257,8 +236,10 @@ namespace lc {
 					double cos_term = glm::max(glm::dot(camera_node.surface.n, omega_i), 0.0);
 					Vec3 this_coef = lambert->albedo * brdf * cos_term;
 
-					explicit_contribution = this_coef * emissive.color * camera_node.coef / glm::max(pdf, kEPS);
-					explicit_pdf = pdf;
+					Sample<Vec3> contrib;
+					contrib.value = this_coef * emissive.color * camera_node.coef / glm::max(pdf, kEPS);
+					contrib.pdf = pdf;
+					explicit_contributions.push_back(contrib);
 				}
 			}
 			else if (auto cook = boost::get<CookTorranceMaterial>(&camera_node.surface.m)) {
@@ -286,81 +267,58 @@ namespace lc {
 
 					Vec3 this_coef = cook->albedo * brdf * cos_term;
 
-					explicit_contribution = this_coef * emissive.color * camera_node.coef / glm::max(pdf, kEPS);
-					explicit_pdf = pdf;
+					Sample<Vec3> contrib;
+					contrib.value = this_coef * emissive.color * camera_node.coef / glm::max(pdf, kEPS);
+					contrib.pdf = pdf;
+					explicit_contributions.push_back(contrib);
 				}
 			}
 			if (is_term) {
 				if (auto emissive = boost::get<EmissiveMaterial>(&camera_node.surface.m)) {
-					implicit_contribution = emissive->color * camera_node.coef / glm::max(camera_node.pdf, kEPS);
-					implicit_pdf = camera_node.pdf;
+					implicit_contribution.value = emissive->color * camera_node.coef / glm::max(camera_node.pdf, kEPS);
+					implicit_contribution.pdf = camera_node.pdf;
 				}
 			}
+		}
 
-			// テスト用 強制暗黙戦略
-			//color += implicit_contribution;
-			//continue;
+		// ビジュアライズ
+		/*
+		implicit_contribution.value = Vec3(0.4, 0.0, 0.0);
+		for (int i = 0; i < explicit_contributions.size(); ++i) {
+			explicit_contributions[i].value = Vec3(0.0, 0.4, 0.0);
+		}
+		*/
 
-			// return implicit_contribution;
-			// return explicit_contribution;
-
-#define VISUALIZE_MIS 0
-
-			double weight_all = 0.0;
-			Vec3 contribution;
-
-#if VISUALIZE_MIS == 0
-			// MIS
-			//contribution += implicit_contribution * implicit_pdf;
-			//weight_all += implicit_pdf;
-
-			//contribution += explicit_contribution * explicit_pdf;
-			//weight_all += explicit_pdf;
-
-			//if (0.0001 < weight_all) {
-			//	contribution /= weight_all;
-			//	color += contribution;
-			//}
-
-			double implicit_weight = glm::pow(implicit_pdf, 2);
-			double explicit_weight = glm::pow(explicit_pdf, 2);
-
-			contribution += implicit_contribution * implicit_weight;
-			weight_all += implicit_weight;
-
-			contribution += explicit_contribution * explicit_weight;
-			weight_all += explicit_weight;
-
-			if (0.0001 < weight_all) {
-				contribution /= weight_all;
-				color += contribution;
+		// 片方の戦略しか使えない場合に対応
+		if (explicit_contributions.empty()) {
+			return *implicit_contribution;
+		}
+		if (implicit_contribution.pdf < glm::epsilon<double>()) {
+			Vec3 color;
+			for (int i = 0; i < explicit_contributions.size(); ++i) {
+				color += *explicit_contributions[i];
 			}
+			return color;
+		}
 
-			// MIS ビジュアライズ
-			//contribution += Vec3(1.0, 0.0, 0.0) * implicit_pdf;
-			//weight_all += implicit_pdf;
+		// MISによるマージ
+		Vec3 color;
 
-			//contribution += Vec3(0.0, 0.0, 1.0) * explicit_pdf;
-			//weight_all += explicit_pdf;
+		// 平均
+		auto mu = [](const Vec3 v) {
+			return (v.x + v.y + v.z) * (1.0 / 3.0);
+		};
 
-			//if (0.0001 < weight_all) {
-			//	contribution /= weight_all;
-			//	color += contribution;
-			//}
-#else
-			// MIS ビジュアライズ
-			contribution += Vec3(1.0, 0.0, 0.0) * implicit_pdf;
-			weight_all += implicit_pdf;
+		double implicit_weight = glm::pow(implicit_contribution.pdf * mu(implicit_contribution.value), 2.0);
+		Vec3 implicit = implicit_contribution.value * implicit_weight / explicit_contributions.size();
 
-			contribution += Vec3(0.0, 0.0, 1.0) * explicit_pdf;
-			weight_all += explicit_pdf;
+		for (int i = 0; i < explicit_contributions.size(); ++i) {
+			auto explicit_contribution = explicit_contributions[i];
+			double explicit_weight = glm::pow(explicit_contribution.pdf * mu(explicit_contribution.value), 2.0);
 
-			if (0.0001 < weight_all) {
-				contribution /= weight_all;
-				color += contribution;
-			}
-#endif
-
+			Vec3 sum = explicit_contribution.value * explicit_weight + implicit;
+			double weight_sum = implicit_weight + explicit_weight;
+			color += 0.0 < weight_sum ? sum / weight_sum : Vec3();
 		}
 
 		return color;
