@@ -305,7 +305,12 @@ namespace lc {
 	直接サンプルするレイを生成
 	pdfは立体角尺度
 	*/
-	inline Sample<Ray> direct_sample_ray(const Scene &scene, const Vec3 &p, DefaultEngine &engine) {
+	struct DirectSampling {
+		double tmin = 0.0;
+		Ray ray;
+		OnLight onLight;
+	};
+	inline Sample<DirectSampling> direct_light_sample(const Scene &scene, const Vec3 &p, DefaultEngine &engine) {
 		const ILight *light = scene.lights.size() == 1 ?
 			scene.lights[0]
 			:
@@ -315,15 +320,26 @@ namespace lc {
 
 		// 表面積の確率密度を立体角の確率密度に変換する
 		Sample<OnLight> s = light->sample(engine, p);
-		Vec3 dir = glm::normalize(s.value.p - p);
-		double pdf = glm::distance2(p, s.value.p) * s.pdf / glm::abs(glm::dot(s.value.n, dir));
+		double distance_squared = glm::distance2(p, s.value.p);
+		double dist = glm::sqrt(distance_squared);
+		Vec3 dir = (s.value.p - p) / dist;
+		double pdf = distance_squared * s.pdf / glm::abs(glm::dot(s.value.n, dir));
 
-		Sample<Ray> sr;
-		sr.pdf = pdf * selection_pdf;
-		sr.value = Ray(glm::fma(dir, kReflectionBias, p), dir);
-		return sr;
+		Sample<DirectSampling> ds;
+		ds.pdf = pdf * selection_pdf;
+		ds->ray = Ray(glm::fma(dir, kReflectionBias, p), dir);
+		ds->onLight = s.value;
+		ds->tmin = dist;
+		
+		// 法線を調整
+		if (0.0 < glm::dot(ds->onLight.n, dir)) {
+			ds->onLight.n = -ds->onLight.n;
+		}
+
+		return ds;
 	}
 
+	// シーンとレイの衝突判定
 	inline boost::optional<MicroSurface> intersect(const Ray &ray, const Scene &scene) {
 		double tmin = std::numeric_limits<double>::max();
 		LazyValue<MicroSurface, 256> min_intersection;
@@ -338,5 +354,24 @@ namespace lc {
 			return min_intersection.evaluate();
 		}
 		return boost::none;
+	}
+
+	// rayからtmin_targetまでの遮蔽をしらべる
+	// いくらかこちらのほうが計算を省略できる
+	inline bool is_visible(const Ray &ray, const Scene &scene, double tmin_target) {
+		double tmin = tmin_target;
+		LazyValue<MicroSurface, 256> min_intersection;
+
+		for (int i = 0; i < scene.objects.size(); ++i) {
+			if (auto *intersectable = boost::polymorphic_strict_get<ISceneIntersectable>(&scene.objects[i])) {
+				intersectable->intersect(ray, min_intersection, tmin);
+
+				// tmin_targetよりも手前に何か存在していた
+				if (tmin + 0.00001 < tmin_target) {
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 }
