@@ -225,7 +225,7 @@ namespace lc {
 				for (auto index : _nodes[node_index].indices) {
 					const Triangle &triangle = _triangles[index];
 					if (auto intersection = lc::intersect(ray, triangle)) {
-						double tmin = r ? r->tmin : std::numeric_limits<double>::max();
+						double tmin = r ? r->tmin : tmin_already;
 						if (intersection->tmin < tmin) {
 							r = BVHIntersection(*intersection, index);
 							r->triangle_index = index;
