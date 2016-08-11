@@ -321,7 +321,7 @@ namespace lc {
 
 		for (int i = 0; i < explicit_contributions.size(); ++i) {
 			auto explicit_contribution = explicit_contributions[i];
-			double explicit_weight = glm::pow(explicit_contribution.pdf, 2.0);
+			double explicit_weight = glm::pow(explicit_contribution.pdf * explicit_contributions.size(), 2.0);
 
 			Vec3 sum = explicit_contribution.value * explicit_weight + implicit;
 			double weight_sum = implicit_weight + explicit_weight;
