@@ -200,10 +200,32 @@ namespace lc {
 		}
 	};
 
-	struct TriangleMeshObject {
+	struct MeshObject : public ISceneIntersectable {
 		BVH bvh;
 		Material material;
-		Transform transform;
+
+		void intersect(const Ray &ray, LazyMicroSurface &surface, double &tmin) const override {
+			if (auto intersection = bvh.intersect(ray, tmin)) {
+				if (intersection->tmin < tmin) {
+					auto triangle = bvh._triangles[intersection->triangle_index];
+					Material material_value = material;
+
+					surface = [ray, intersection, triangle, material_value]() {
+						MicroSurface m;
+						m.p = intersection->intersect_position(ray);
+						m.n = intersection->intersect_normal(triangle);
+						m.vn = m.n;
+						m.m = material_value;
+						m.isback = intersection->isback;
+						return m;
+					};
+					tmin = intersection->tmin;
+				}
+			}
+		}
+		bool is_visible(const Ray &ray, double tmin_target) const override {
+			return bvh.is_visible(ray, tmin_target);
+		}
 	};
 
 	struct ConelBoxObject : public ISceneIntersectable {
@@ -282,7 +304,7 @@ namespace lc {
 		}
 	};
 
-	typedef boost::variant<SphereObject, ConelBoxObject, TriangleMeshObject, DiscLight, PolygonLight> SceneObject;
+	typedef boost::variant<SphereObject, ConelBoxObject, MeshObject, DiscLight, PolygonLight> SceneObject;
 
 	struct Scene {
 		Transform viewTransform;

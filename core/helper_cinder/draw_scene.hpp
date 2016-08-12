@@ -21,7 +21,7 @@ namespace lc {
 		cinder::gl::ScopedColor c(0.5, 0.5, 0.5);
 		cinder::gl::drawSphere(o.sphere.center, o.sphere.radius, 15);
 	}
-	inline void draw_object(const TriangleMeshObject &o) {
+	inline void draw_object(const MeshObject &o) {
 		//cinder::gl::ScopedPolygonMode wire(GL_LINE);
 		//cinder::gl::ScopedColor c(0.5, 0.5, 0.5);
 		//cinder::gl::drawSphere(o.sphere.center, o.sphere.radius, 15);

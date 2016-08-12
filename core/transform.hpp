@@ -3,6 +3,10 @@
 #include "render_type.hpp"
 
 namespace lc {
+	inline Vec3 mul3x4(const Mat4 &m, const Vec3 v) {
+		return Vec3(m * lc::Vec4(v, 1.0));
+	}
+
 	/*
 	平行移動、回転、スケール
 	*/
