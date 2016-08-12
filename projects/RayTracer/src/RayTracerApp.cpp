@@ -5,8 +5,6 @@
 #include "cinder/ObjLoader.h"
 #include "CinderImGui.h"
 
-
-
 #include "render.hpp"
 
 #include "helper_cinder/mesh_util.hpp"
@@ -31,7 +29,23 @@ namespace lc {
 		auto surface = cinder::Surface32f::create(buffer._width, buffer._height, false);
 		double normalize_value = 1.0 / buffer._iteration;
 
-		concurrency::parallel_for<int>(0, buffer._height, [&buffer, surface, normalize_value](int y) {
+		parallel_for(buffer._height, [&buffer, surface, normalize_value](int beg_y, int end_y) {
+			for (int y = beg_y; y < end_y; ++y) {
+				float *lineHead = surface->getData(glm::ivec2(0, y));
+				for (int x = 0; x < buffer._width; ++x) {
+					int index = y * buffer._width + x;
+					const AccumlationBuffer::Pixel &pixel = buffer._data[index];
+					float *dstRGB = lineHead + x * 3;
+
+					Vec3 color = pixel.color * normalize_value;
+
+					for (int i = 0; i < 3; ++i) {
+						dstRGB[i] = static_cast<float>(color[i]);
+					}
+				}
+			}
+		});
+		/*concurrency::parallel_for<int>(0, buffer._height, [&buffer, surface, normalize_value](int y) {
 			float *lineHead = surface->getData(glm::ivec2(0, y));
 			for (int x = 0; x < buffer._width; ++x) {
 				int index = y * buffer._width + x;
@@ -44,63 +58,314 @@ namespace lc {
 					dstRGB[i] = static_cast<float>(color[i]);
 				}
 			}
-		});
+		});*/
 		return surface;
 	}
 
 
-	// すこぶる微妙な気配
-	inline cinder::Surface32fRef median_filter(cinder::Surface32fRef image) {
-		int width = image->getWidth();
-		int height = image->getHeight();
-		auto surface = cinder::Surface32f::create(width, height, false);
-		float *lineHeadDst = surface->getData();
-		float *lineHeadSrc = image->getData();
-		concurrency::parallel_for<int>(0, height, [lineHeadDst, lineHeadSrc, width, height](int y) {
-			for (int x = 0; x < width; ++x) {
-				int index = y * width + x;
-				struct Pix {
-					Pix() {}
-					Pix(const float *c):color(c[0], c[1], c[2]), luminance(0.299f*c[0] + 0.587f*c[1] + 0.114f*c[2]){
-					}
-					glm::vec3 color;
-					float luminance;
-				};
+	//// すこぶる微妙な気配
+	//inline cinder::Surface32fRef median_filter(cinder::Surface32fRef image) {
+	//	int width = image->getWidth();
+	//	int height = image->getHeight();
+	//	auto surface = cinder::Surface32f::create(width, height, false);
+	//	float *lineHeadDst = surface->getData();
+	//	float *lineHeadSrc = image->getData();
+	//	concurrency::parallel_for<int>(0, height, [lineHeadDst, lineHeadSrc, width, height](int y) {
+	//		for (int x = 0; x < width; ++x) {
+	//			int index = y * width + x;
+	//			struct Pix {
+	//				Pix() {}
+	//				Pix(const float *c):color(c[0], c[1], c[2]), luminance(0.299f*c[0] + 0.587f*c[1] + 0.114f*c[2]){
+	//				}
+	//				glm::vec3 color;
+	//				float luminance;
+	//			};
 
-				std::array<Pix, 5> p3x3;
-				//p3x3[0] = Pix(lineHeadSrc + (std::max(y - 1, 0) * width + std::max(x - 1, 0)) * 3);
-				p3x3[0] = Pix(lineHeadSrc + (std::max(y - 1, 0) * width + x) * 3);
-				//p3x3[2] = Pix(lineHeadSrc + (std::max(y - 1, 0) * width + std::min(x + 1, width - 1)) * 3);
+	//			std::array<Pix, 5> p3x3;
+	//			//p3x3[0] = Pix(lineHeadSrc + (std::max(y - 1, 0) * width + std::max(x - 1, 0)) * 3);
+	//			p3x3[0] = Pix(lineHeadSrc + (std::max(y - 1, 0) * width + x) * 3);
+	//			//p3x3[2] = Pix(lineHeadSrc + (std::max(y - 1, 0) * width + std::min(x + 1, width - 1)) * 3);
 
-				p3x3[1] = Pix(lineHeadSrc + (y * width + std::max(x - 1, 0)) * 3);
-				p3x3[2] = Pix(lineHeadSrc + (y * width + x) * 3);
-				p3x3[3] = Pix(lineHeadSrc + (y * width + std::min(x + 1, width - 1)) * 3);
+	//			p3x3[1] = Pix(lineHeadSrc + (y * width + std::max(x - 1, 0)) * 3);
+	//			p3x3[2] = Pix(lineHeadSrc + (y * width + x) * 3);
+	//			p3x3[3] = Pix(lineHeadSrc + (y * width + std::min(x + 1, width - 1)) * 3);
 
-				//p3x3[6] = Pix(lineHeadSrc + (std::min(y + 1, height - 1) * width + std::max(x - 1, 0)) * 3);
-				p3x3[4] = Pix(lineHeadSrc + (std::min(y + 1, height - 1) * width + x) * 3);
-				//p3x3[8] = Pix(lineHeadSrc + (std::min(y + 1, height - 1) * width + std::min(x + 1, width - 1)) * 3);
-				
-				std::nth_element(p3x3.begin(), p3x3.begin() + 2, p3x3.end(), [](const Pix &a, const Pix &b) { 
-					return a.luminance < b.luminance;
-				});
+	//			//p3x3[6] = Pix(lineHeadSrc + (std::min(y + 1, height - 1) * width + std::max(x - 1, 0)) * 3);
+	//			p3x3[4] = Pix(lineHeadSrc + (std::min(y + 1, height - 1) * width + x) * 3);
+	//			//p3x3[8] = Pix(lineHeadSrc + (std::min(y + 1, height - 1) * width + std::min(x + 1, width - 1)) * 3);
+	//			
+	//			std::nth_element(p3x3.begin(), p3x3.begin() + 2, p3x3.end(), [](const Pix &a, const Pix &b) { 
+	//				return a.luminance < b.luminance;
+	//			});
 
-				Pix p = p3x3[2];
-				float *dstRGB = lineHeadDst + (y * width + x) * 3;
-				for (int i = 0; i < 3; ++i) {
-					dstRGB[i] = p.color[i];
-				}
-			}
-		});
-		return surface;
-	}
+	//			Pix p = p3x3[2];
+	//			float *dstRGB = lineHeadDst + (y * width + x) * 3;
+	//			for (int i = 0; i < 3; ++i) {
+	//				dstRGB[i] = p.color[i];
+	//			}
+	//		}
+	//	});
+	//	return surface;
+	//}
 }
-
 
 using namespace ci;
 using namespace ci::app;
 using namespace std;
 
+inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 
+	lc::Vec3 eye(0.0, 0.0, 60.0);
+	lc::Vec3 look_at;
+	lc::Vec3 up = { 0.0, 1.0, 0.0 };
+
+	lc::Camera::Settings camera_settings;
+	camera_settings.fovy = glm::radians(70.0);
+	scene.camera = lc::Camera(camera_settings);
+	scene.viewTransform = lc::Transform(glm::lookAt(eye, look_at, up));
+
+	scene.add(lc::ConelBoxObject(50.0));
+
+	//auto spec = lc::SphereObject(
+	//	lc::Sphere(lc::Vec3(-10.0, -15, -10.0), 10.0),
+	//	lc::PerfectSpecularMaterial()
+	//);
+	//scene.add(spec);
+
+	// 質感テスト
+	//for (int i = 0; i < 5; ++i) {
+	//	auto spec = lc::SphereObject(
+	//		lc::Sphere(lc::Vec3(
+	//			-20.0 + i * 10.0,
+	//			-18.0,
+	//			0.0), 5.0f),
+	//		lc::CookTorranceMaterial(lc::Vec3(1.0), 0.1 + i * 0.2, 0.99 /*フレネル*/)
+	//	);
+	//	scene.add(spec);
+	//}
+
+	//auto spec = lc::SphereObject(
+	//	lc::Sphere(lc::Vec3(0.0, -10, 0.0), 10.0),
+	//	lc::CookTorranceMaterial(lc::Vec3(1.0), 0.01, 0.01f /*フレネル*/)
+	//);
+	//scene.add(spec);
+
+	//auto spec = lc::SphereObject(
+	//	lc::Sphere(lc::Vec3(-10.0, -15, 10.0), 10.0),
+	//	lc::CookTorranceMaterial(lc::Vec3(0.0), lc::Vec3(1.0), 0.01, 0.05f /*フレネル*/)
+	//);
+	// scene.add(spec);
+
+	//auto grass = lc::SphereObject(
+	//	lc::Sphere(lc::Vec3(10.0, -10, 10.0), 7.0),
+	//	lc::RefractionMaterial(1.4)
+	//);
+	//scene.add(grass);
+
+
+	//cinder::ObjLoader loader(loadAsset("dragon.obj"));
+	//auto mesh = cinder::TriMesh::create(loader);
+
+	// TODO scaleバグ
+
+	// auto mesh = cinder::TriMesh::create(cinder::geom::Sphere().radius(10.0));
+
+	/*auto dragon = lc::TriangleMeshObject();
+	dragon.bvh.set_triangle(lc::to_triangles(mesh));
+	for (int i = 0; i < dragon.bvh._triangles.size(); ++i) {
+	for (int j = 0; j < 3; ++j) {
+	dragon.bvh._triangles[i].v[j] *= 30.0;
+	}
+	}
+	dragon.bvh.build();
+	lc::Mat4 dragonMat;
+	dragonMat = glm::translate(dragonMat, lc::Vec3(0.0, -20.0, 0.0));
+	dragon.transform = lc::Transform(dragonMat);
+	dragon.material = lc::RefractionMaterial(1.4);
+	scene.objects.push_back(dragon);*/
+
+	// でかいライト
+	{
+		auto light = lc::DiscLight();
+		light.disc = lc::make_disc(
+			lc::Vec3(0.0, 24.0, 0.0),
+			lc::Vec3(0.0, -1.0, 0.0),
+			10.0
+		);
+		light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
+		scene.add(light);
+	}
+
+	//{
+	//	auto light = lc::DiscLight();
+	//	light.disc = lc::make_disc(
+	//		lc::Vec3(0.0, 24.0, 0.0),
+	//		lc::Vec3(0.0, -1.0, 0.0),
+	//		7
+	//	);
+	//	light.emissive = lc::EmissiveMaterial(lc::Vec3(5.0));
+	//	light.doubleSided = false;
+	//	scene.add(light);
+	//}
+	//{
+	//	auto light = lc::DiscLight();
+	//	light.disc = lc::make_disc(
+	//		lc::Vec3(20.0f, 10.0, 0.0),
+	//		glm::normalize(lc::Vec3(-1.0, -1.0, 0.0)),
+	//		5
+	//	);
+	//	light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
+	//	light.doubleSided = false;
+	//	scene.add(light);
+	//}
+	{
+		auto light = lc::DiscLight();
+		light.disc = lc::make_disc(
+			lc::Vec3(-20.0f, 10.0, 0.0),
+			glm::normalize(lc::Vec3(1.0, -1.0, 0.0)),
+			5
+		);
+		light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
+		light.doubleSided = false;
+		scene.add(light);
+	}
+
+
+	// テストはと
+	{
+		double scale_value = 5.0;
+		lc::Mat4 transform;
+		transform = glm::translate(transform, lc::Vec3(0.0, -24.0, 0.0));
+		transform = glm::scale(transform, lc::Vec3(scale_value));
+
+
+		std::vector<tinyobj::shape_t> shapes;
+		std::vector<tinyobj::material_t> materials;
+		std::string err;
+		std::string path = (asset_path / "hato.obj").string();
+		bool ret = tinyobj::LoadObj(shapes, materials, err, path.c_str());
+
+		for (int k = 0; k < shapes.size(); ++k) {
+			const tinyobj::shape_t &shape = shapes[k];
+			auto mesh = lc::MeshObject();
+			if (shape.name == "hato.002_hato.003") {
+				mesh.material = lc::LambertMaterial(lc::Vec3(0.4, 0.9, 0.95));
+			}
+			else {
+				mesh.material = lc::LambertMaterial(lc::Vec3(0.85, 0.63, 0.85));
+			}
+
+			// mesh.material = lc::CookTorranceMaterial(lc::Vec3(1.0), 0.4, 0.99 /*フレネル*/);
+
+			std::vector<lc::Triangle> triangles;
+			for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+				lc::Triangle tri;
+				for (int j = 0; j < 3; ++j) {
+					int idx = shape.mesh.indices[i + j];
+					for (int k = 0; k < 3; ++k) {
+						tri.v[j][k] = shape.mesh.positions[idx * 3 + k];
+					}
+				}
+				triangles.push_back(tri);
+			}
+			std::vector<lc::Triangle> tris = triangles;
+
+			for (int i = 0; i < tris.size(); ++i) {
+				for (int j = 0; j < 3; ++j) {
+					tris[i][j] = lc::mul3x4(transform, tris[i][j]);
+				}
+			}
+			mesh.bvh.set_triangle(tris);
+			mesh.bvh.build();
+
+			scene.add(mesh);
+		}
+
+		std::array<lc::Vec3, 2> eyes = {
+			lc::Vec3(1.405, 4.02, 0.594),
+			lc::Vec3(1.405, 4.02, -0.594)
+		};
+		for (int i = 0; i < eyes.size(); ++i) {
+			auto eye = lc::SphereObject(
+				lc::Sphere(lc::mul3x4(transform, eyes[i]), 0.15 * scale_value),
+				lc::CookTorranceMaterial(lc::Vec3(0.0), lc::Vec3(1.0), 0.01, 0.05 /*フレネル*/)
+			);
+			scene.add(eye);
+		}
+	}
+
+	// ポリゴンライト
+	{
+		auto light = lc::PolygonLight();
+		light.emissive_front = lc::Vec3(3.0, 3.0, 0.5);
+		light.emissive_back = lc::Vec3(0.5, 5.0, 5.0);
+
+		std::vector<tinyobj::shape_t> shapes;
+		std::vector<tinyobj::material_t> materials;
+		std::string err;
+		std::string path = (asset_path / "butterfly.obj").string();
+		bool ret = tinyobj::LoadObj(shapes, materials, err, path.c_str());
+
+		const tinyobj::shape_t &shape = shapes[0];
+		std::vector<lc::Triangle> triangles;
+		for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+			lc::Triangle tri;
+			for (int j = 0; j < 3; ++j) {
+				int idx = shape.mesh.indices[i + j];
+				for (int k = 0; k < 3; ++k) {
+					tri.v[j][k] = shape.mesh.positions[idx * 3 + k];
+				}
+			}
+			triangles.push_back(tri);
+		}
+
+		{
+			std::vector<lc::Triangle> tris = triangles;
+
+			// デフォルトは奥を向いている？
+			for (int i = 0; i < tris.size(); ++i) {
+				for (int j = 0; j < 3; ++j) {
+					tris[i][j] *= 15.0;
+					tris[i][j] = glm::rotateX(tris[i][j], glm::radians(40.0));
+					tris[i][j] = glm::rotateY(tris[i][j], glm::radians(70.0));
+
+					tris[i][j] += lc::Vec3(-10.0, 0.0, 0.0);
+				}
+			}
+
+			light.uniform_triangle.set_triangle(tris);
+			light.uniform_triangle.build();
+			light.bvh.set_triangle(tris);
+			light.bvh.build();
+
+			scene.add(light);
+		}
+
+		{
+			std::vector<lc::Triangle> tris = triangles;
+
+			// デフォルトは奥を向いている？
+			for (int i = 0; i < tris.size(); ++i) {
+				for (int j = 0; j < 3; ++j) {
+					tris[i][j] *= 10.0;
+					tris[i][j] = glm::rotateX(tris[i][j], glm::radians(40.0));
+					tris[i][j] = glm::rotateY(tris[i][j], glm::radians(-30.0));
+
+					tris[i][j] += lc::Vec3(11.0, 10.0, -5.0);
+				}
+			}
+
+			light.uniform_triangle.set_triangle(tris);
+			light.uniform_triangle.build();
+			light.bvh.set_triangle(tris);
+			light.bvh.build();
+
+			scene.add(light);
+		}
+	}
+
+	scene.finalize();
+}
 
 class RayTracerApp : public App {
 public:
@@ -178,255 +443,7 @@ void RayTracerApp::setup()
 
 	_buffer = new lc::AccumlationBuffer(wide, wide);
 
-	lc::Vec3 eye(0.0, 0.0, 60.0);
-	lc::Vec3 look_at;
-	lc::Vec3 up = { 0.0, 1.0, 0.0 };
-
-	lc::Camera::Settings camera_settings;
-	camera_settings.fovy = glm::radians(70.0);
-	_scene.camera = lc::Camera(camera_settings);
-	_scene.viewTransform = lc::Transform(glm::lookAt(eye, look_at, up));
-
-	_scene.add(lc::ConelBoxObject(50.0));
-
-	//auto spec = lc::SphereObject(
-	//	lc::Sphere(lc::Vec3(-10.0, -15, -10.0), 10.0),
-	//	lc::PerfectSpecularMaterial()
-	//);
-	//_scene.add(spec);
-
-	// 質感テスト
-	//for (int i = 0; i < 5; ++i) {
-	//	auto spec = lc::SphereObject(
-	//		lc::Sphere(lc::Vec3(
-	//			-20.0 + i * 10.0,
-	//			-18.0,
-	//			0.0), 5.0f),
-	//		lc::CookTorranceMaterial(lc::Vec3(1.0), 0.1 + i * 0.2, 0.99 /*フレネル*/)
-	//	);
-	//	_scene.add(spec);
-	//}
-
-	//auto spec = lc::SphereObject(
-	//	lc::Sphere(lc::Vec3(0.0, -10, 0.0), 10.0),
-	//	lc::CookTorranceMaterial(lc::Vec3(1.0), 0.01, 0.01f /*フレネル*/)
-	//);
-	//_scene.add(spec);
-
-	//auto spec = lc::SphereObject(
-	//	lc::Sphere(lc::Vec3(-10.0, -15, 10.0), 10.0),
-	//	lc::CookTorranceMaterial(lc::Vec3(0.0), lc::Vec3(1.0), 0.01, 0.05f /*フレネル*/)
-	//);
-	// _scene.add(spec);
-
-	//auto grass = lc::SphereObject(
-	//	lc::Sphere(lc::Vec3(10.0, -10, 10.0), 7.0),
-	//	lc::RefractionMaterial(1.4)
-	//);
-	//_scene.add(grass);
-
-
-	//cinder::ObjLoader loader(loadAsset("dragon.obj"));
-	//auto mesh = cinder::TriMesh::create(loader);
-
-	// TODO scaleバグ
-
-	// auto mesh = cinder::TriMesh::create(cinder::geom::Sphere().radius(10.0));
-
-	/*auto dragon = lc::TriangleMeshObject();
-	dragon.bvh.set_triangle(lc::to_triangles(mesh));
-	for (int i = 0; i < dragon.bvh._triangles.size(); ++i) {
-		for (int j = 0; j < 3; ++j) {
-			dragon.bvh._triangles[i].v[j] *= 30.0;
-		}
-	}
-	dragon.bvh.build();
-	lc::Mat4 dragonMat;
-	dragonMat = glm::translate(dragonMat, lc::Vec3(0.0, -20.0, 0.0));
-	dragon.transform = lc::Transform(dragonMat);
-	dragon.material = lc::RefractionMaterial(1.4);
-	_scene.objects.push_back(dragon);*/
-
-	// でかいライト
-	{
-		auto light = lc::DiscLight();
-		light.disc = lc::make_disc(
-			lc::Vec3(0.0, 24.0, 0.0),
-			lc::Vec3(0.0, -1.0, 0.0),
-			10.0
-		);
-		light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
-		_scene.add(light);
-	}
-
-	//{
-	//	auto light = lc::DiscLight();
-	//	light.disc = lc::make_disc(
-	//		lc::Vec3(0.0, 24.0, 0.0),
-	//		lc::Vec3(0.0, -1.0, 0.0),
-	//		7
-	//	);
-	//	light.emissive = lc::EmissiveMaterial(lc::Vec3(5.0));
-	//	light.doubleSided = false;
-	//	_scene.add(light);
-	//}
-	//{
-	//	auto light = lc::DiscLight();
-	//	light.disc = lc::make_disc(
-	//		lc::Vec3(20.0f, 10.0, 0.0),
-	//		glm::normalize(lc::Vec3(-1.0, -1.0, 0.0)),
-	//		5
-	//	);
-	//	light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
-	//	light.doubleSided = false;
-	//	_scene.add(light);
-	//}
-	{
-		auto light = lc::DiscLight();
-		light.disc = lc::make_disc(
-			lc::Vec3(-20.0f, 10.0, 0.0),
-			glm::normalize(lc::Vec3( 1.0, -1.0, 0.0)),
-			5
-		);
-		light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
-		light.doubleSided = false;
-		_scene.add(light);
-	}
-
-
-	// テストはと
-	{
-		double scale_value = 5.0;
-		lc::Mat4 transform;
-		transform = glm::translate(transform, lc::Vec3(0.0, -24.0, 0.0));
-		transform = glm::scale(transform, lc::Vec3(scale_value));
-
-
-		std::vector<tinyobj::shape_t> shapes;
-		std::vector<tinyobj::material_t> materials;
-		std::string err;
-		std::string path = (getAssetPath("") / "hato.obj").string();
-		bool ret = tinyobj::LoadObj(shapes, materials, err, path.c_str());
-
-		for (int k = 0; k < shapes.size(); ++k) {
-			const tinyobj::shape_t &shape = shapes[k];
-			auto mesh = lc::MeshObject();
-			if (shape.name == "hato.002_hato.003") {
-				mesh.material = lc::LambertMaterial(lc::Vec3(0.4, 0.9, 0.95));
-			} else {
-				mesh.material = lc::LambertMaterial(lc::Vec3(0.85, 0.63, 0.85));
-			}
-
-			// mesh.material = lc::CookTorranceMaterial(lc::Vec3(1.0), 0.4, 0.99 /*フレネル*/);
-
-			std::vector<lc::Triangle> triangles;
-			for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
-				lc::Triangle tri;
-				for (int j = 0; j < 3; ++j) {
-					int idx = shape.mesh.indices[i + j];
-					for (int k = 0; k < 3; ++k) {
-						tri.v[j][k] = shape.mesh.positions[idx * 3 + k];
-					}
-				}
-				triangles.push_back(tri);
-			}
-			std::vector<lc::Triangle> tris = triangles;
-
-			for (int i = 0; i < tris.size(); ++i) {
-				for (int j = 0; j < 3; ++j) {
-					tris[i][j] = lc::mul3x4(transform, tris[i][j]);
-				}
-			}
-			mesh.bvh.set_triangle(tris);
-			mesh.bvh.build();
-
-			_scene.add(mesh);
-		}
-
-		std::array<lc::Vec3, 2> eyes = {
-			lc::Vec3(1.405, 4.02, 0.594),
-			lc::Vec3(1.405, 4.02, -0.594)
-		};
-		for (int i = 0; i < eyes.size(); ++i) {
-			auto eye = lc::SphereObject(
-				lc::Sphere(lc::mul3x4(transform, eyes[i]), 0.15 * scale_value),
-				lc::CookTorranceMaterial(lc::Vec3(0.0), lc::Vec3(1.0), 0.01, 0.05 /*フレネル*/)
-			);
-			_scene.add(eye);
-		}
-	}
-
-	// ポリゴンライト
-	{
-		auto light = lc::PolygonLight();
-		light.emissive_front = lc::Vec3(3.0, 3.0, 0.5);
-		light.emissive_back = lc::Vec3(0.5, 5.0, 5.0);
-
-		std::vector<tinyobj::shape_t> shapes;
-		std::vector<tinyobj::material_t> materials;
-		std::string err;
-		std::string path = (getAssetPath("") / "butterfly.obj").string();
-		bool ret = tinyobj::LoadObj(shapes, materials, err, path.c_str());
-
-		const tinyobj::shape_t &shape = shapes[0];
-		std::vector<lc::Triangle> triangles;
-		for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
-			lc::Triangle tri;
-			for (int j = 0; j < 3; ++j) {
-				int idx = shape.mesh.indices[i + j];
-				for (int k = 0; k < 3; ++k) {
-					tri.v[j][k] = shape.mesh.positions[idx * 3 + k];
-				}
-			}
-			triangles.push_back(tri);
-		}
-
-		{
-			std::vector<lc::Triangle> tris = triangles;
-
-			// デフォルトは奥を向いている？
-			for (int i = 0; i < tris.size(); ++i) {
-				for (int j = 0; j < 3; ++j) {
-					tris[i][j] *= 15.0;
-					tris[i][j] = glm::rotateX(tris[i][j], glm::radians(40.0));
-					tris[i][j] = glm::rotateY(tris[i][j], glm::radians(70.0));
-
-					tris[i][j] += lc::Vec3(-10.0, 0.0, 0.0);
-				}
-			}
-
-			light.uniform_triangle.set_triangle(tris);
-			light.uniform_triangle.build();
-			light.bvh.set_triangle(tris);
-			light.bvh.build();
-
-			_scene.add(light);
-		}
-
-		{
-			std::vector<lc::Triangle> tris = triangles;
-
-			// デフォルトは奥を向いている？
-			for (int i = 0; i < tris.size(); ++i) {
-				for (int j = 0; j < 3; ++j) {
-					tris[i][j] *= 10.0;
-					tris[i][j] = glm::rotateX(tris[i][j], glm::radians(40.0));
-					tris[i][j] = glm::rotateY(tris[i][j], glm::radians(-30.0));
-
-					tris[i][j] += lc::Vec3( 11.0, 10.0, -5.0);
-				}
-			}
-
-			light.uniform_triangle.set_triangle(tris);
-			light.uniform_triangle.build();
-			light.bvh.set_triangle(tris);
-			light.bvh.build();
-
-			_scene.add(light);
-		}
-	}
-
-	_scene.finalize();
+	setup_scene(_scene, getAssetPath(""));
 }
 
 void RayTracerApp::mouseDown(MouseEvent event)
@@ -489,11 +506,12 @@ void RayTracerApp::draw()
 
 		_renderTime += duration;
 
-		if (_median) {
-			_surface = lc::median_filter(lc::to_surface(*_buffer));
-		} else {
-			_surface = lc::to_surface(*_buffer);
-		}
+		//if (_median) {
+		//	_surface = lc::median_filter(lc::to_surface(*_buffer));
+		//} else {
+		//	_surface = lc::to_surface(*_buffer);
+		//}
+		_surface = lc::to_surface(*_buffer);
 		_texture = gl::Texture2d::create(*_surface);
 
 		fbo_update = true;

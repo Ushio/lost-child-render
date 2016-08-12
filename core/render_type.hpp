@@ -48,6 +48,8 @@ namespace lc {
 /*
 ファイルシステム選択
 */
+#define LC_USE_STD_FILESYSTEM
+
 #ifdef LC_USE_BOOST_FILESYSTEM
 #include <boost/filesystem.hpp>
 namespace lc {

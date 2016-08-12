@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <ppl.h>
+#include "parallel_for.hpp"
 
 #include "constants.hpp"
 #include "collision_triangle.hpp"
@@ -341,36 +341,37 @@ namespace lc {
 
 	inline void step(AccumlationBuffer &buffer, const Scene &scene, int aa_sample) {
 		double aa_sample_inverse = 1.0 / aa_sample;
-		concurrency::parallel_for<int>(0, buffer._height, [&buffer, &scene, aa_sample, aa_sample_inverse](int y) {
-			// for (int y = 0; y < buffer._height; ++y) {
-			for (int x = 0; x < buffer._width; ++x) {
-				int index = y * buffer._width + x;
-				AccumlationBuffer::Pixel &pixel = buffer._data[index];
+		// concurrency::parallel_for<int>(0, buffer._height, [&buffer, &scene, aa_sample, aa_sample_inverse](int y) {
+		parallel_for(buffer._height, [&buffer, &scene, aa_sample, aa_sample_inverse] (int beg_y, int end_y) {
+			for (int y = beg_y; y < end_y; ++y) {
+				for (int x = 0; x < buffer._width; ++x) {
+					int index = y * buffer._width + x;
+					AccumlationBuffer::Pixel &pixel = buffer._data[index];
 
-				Vec3 color;
-				for (int aai = 0; aai < aa_sample; ++aai) {
-					auto aa_offset = Vec2(
-						pixel.engine.continuous() - 0.5,
-						pixel.engine.continuous() - 0.5
-					);
+					Vec3 color;
+					for (int aai = 0; aai < aa_sample; ++aai) {
+						auto aa_offset = Vec2(
+							pixel.engine.continuous() - 0.5,
+							pixel.engine.continuous() - 0.5
+						);
 
-					/* ビュー空間 */
-					auto ray_view = scene.camera.generate_ray(x + aa_offset.x, y + aa_offset.y, buffer._width, buffer._height);
+						/* ビュー空間 */
+						auto ray_view = scene.camera.generate_ray(x + aa_offset.x, y + aa_offset.y, buffer._width, buffer._height);
 
-					/* ワールド空間 */
-					auto ray = scene.viewTransform.to_local_ray(ray_view);
+						/* ワールド空間 */
+						auto ray = scene.viewTransform.to_local_ray(ray_view);
 
-					color += radiance(ray, scene, pixel.engine);
-				}
-				color *= aa_sample_inverse;
+						color += radiance(ray, scene, pixel.engine);
+					}
+					color *= aa_sample_inverse;
 
-				// TODO 対症療法すぎるだろうか
-				if (glm::all(glm::lessThan(color, Vec3(500.0)))) {
-					pixel.color += color;
+					// TODO 対症療法すぎるだろうか
+					if (glm::all(glm::lessThan(color, Vec3(500.0)))) {
+						pixel.color += color;
+					}
 				}
 			}
 		});
-		//}
 
 		buffer._iteration += 1;
 		buffer._ray_count += aa_sample;
