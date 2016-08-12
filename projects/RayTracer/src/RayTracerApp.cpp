@@ -213,12 +213,11 @@ void RayTracerApp::setup()
 	//);
 	//_scene.add(spec);
 
-
 	//auto spec = lc::SphereObject(
-	//	lc::Sphere(lc::Vec3(-10.0, -15, -10.0), 10.0),
-	//	lc::CookTorranceMaterial(lc::Vec3(0.9), 0.01, 0.01f /*フレネル*/)
+	//	lc::Sphere(lc::Vec3(-10.0, -15, 10.0), 10.0),
+	//	lc::CookTorranceMaterial(lc::Vec3(0.0), lc::Vec3(1.0), 0.01, 0.05f /*フレネル*/)
 	//);
-	//_scene.add(spec);
+	// _scene.add(spec);
 
 	//auto grass = lc::SphereObject(
 	//	lc::Sphere(lc::Vec3(10.0, -10, 10.0), 7.0),
@@ -282,17 +281,18 @@ void RayTracerApp::setup()
 	//	light.doubleSided = false;
 	//	_scene.add(light);
 	//}
-	//{
-	//	auto light = lc::DiscLight();
-	//	light.disc = lc::make_disc(
-	//		lc::Vec3(-20.0f, 10.0, 0.0),
-	//		glm::normalize(lc::Vec3( 1.0, -1.0, 0.0)),
-	//		5
-	//	);
-	//	light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
-	//	light.doubleSided = false;
-	//	_scene.add(light);
-	//}
+	{
+		auto light = lc::DiscLight();
+		light.disc = lc::make_disc(
+			lc::Vec3(-20.0f, 10.0, 0.0),
+			glm::normalize(lc::Vec3( 1.0, -1.0, 0.0)),
+			5
+		);
+		light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
+		light.doubleSided = false;
+		_scene.add(light);
+	}
+
 
 	// テストはと
 	{
@@ -312,7 +312,7 @@ void RayTracerApp::setup()
 			const tinyobj::shape_t &shape = shapes[k];
 			auto mesh = lc::MeshObject();
 			if (shape.name == "hato.002_hato.003") {
-				mesh.material = lc::LambertMaterial(lc::Vec3(0.6, 0.9, 0.95));
+				mesh.material = lc::LambertMaterial(lc::Vec3(0.4, 0.9, 0.95));
 			} else {
 				mesh.material = lc::LambertMaterial(lc::Vec3(0.85, 0.63, 0.85));
 			}
@@ -350,7 +350,7 @@ void RayTracerApp::setup()
 		for (int i = 0; i < eyes.size(); ++i) {
 			auto eye = lc::SphereObject(
 				lc::Sphere(lc::mul3x4(transform, eyes[i]), 0.15 * scale_value),
-				lc::CookTorranceMaterial(lc::Vec3(0.1), 0.2, 0.99 /*フレネル*/)
+				lc::CookTorranceMaterial(lc::Vec3(0.0), lc::Vec3(1.0), 0.01, 0.05 /*フレネル*/)
 			);
 			_scene.add(eye);
 		}

@@ -137,10 +137,13 @@ namespace lc {
 				//brdf = d * f * g / glm::max(4.0 * glm::dot(omega_o, surface.n) * cos_term, 0.0001);
 
 				// フレネルによるBRDFブレンディング
+				Vec3 albedo;
 				if (engine.continuous() < f) {
 					double g = G(omega_i, omega_o, ggx_sample.value.h, n, cook->roughness);
 					double d = ggx_d(glm::dot(ggx_sample.value.h, n), cook->roughness);
 					brdf = d * g / glm::max(4.0 * glm::dot(omega_o, n) * cos_term, kEPS);
+
+					albedo = cook->albedo_specular;
 				}
 				else {
 					// brdf = 0;
@@ -153,6 +156,8 @@ namespace lc {
 					brdf = glm::one_over_pi<double>();
 
 					cos_term = glm::max(glm::dot(n, omega_i), 0.0);
+
+					albedo = cook->albedo_diffuse;
 				}
 
 				Path::Node node;
@@ -163,7 +168,7 @@ namespace lc {
 				node.omega_o = omega_o;
 				path.nodes.push_back(node);
 
-				Vec3 this_coef = cook->albedo * brdf * cos_term;
+				Vec3 this_coef = albedo * brdf * cos_term;
 
 				coef *= this_coef;
 				pdf *= this_pdf;
@@ -255,17 +260,20 @@ namespace lc {
 				double f = lc::fresnel(cos_term, cook->fesnel_coef);
 
 				double brdf = 0.0;
+				Vec3 albedo;
 				if (engine.continuous() < f) {
 					Vec3 h = glm::normalize(omega_i + omega_o);
 					double g = G(omega_i, omega_o, h, n, cook->roughness);
 					double d = ggx_d(glm::dot(h, n), cook->roughness);
 					brdf = d * g / glm::max(4.0 * glm::dot(omega_o, n) * cos_term, kEPS);
+					albedo = cook->albedo_specular;
 				}
 				else {
 					brdf = glm::one_over_pi<double>();
+					albedo = cook->albedo_diffuse;
 				}
 
-				Vec3 this_coef = cook->albedo * brdf * cos_term;
+				Vec3 this_coef = albedo * brdf * cos_term;
 
 				double max_coef = glm::max(glm::max(this_coef.r, this_coef.g), this_coef.b);
 				double nee_probability = glm::clamp(max_coef * 1.5, 0.01, 1.0);

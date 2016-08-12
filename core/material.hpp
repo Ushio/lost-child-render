@@ -13,9 +13,12 @@ namespace lc {
 	struct CookTorranceMaterial {
 		CookTorranceMaterial() {}
 		CookTorranceMaterial(Vec3 albedo_, double roughness_, double fesnel_coef_)
-			:albedo(albedo_), roughness(roughness_), fesnel_coef(fesnel_coef_){}
+			:albedo_diffuse(albedo_), albedo_specular(albedo_), roughness(roughness_), fesnel_coef(fesnel_coef_) {}
+		CookTorranceMaterial(Vec3 albedo_diffuse_, Vec3 albedo_specular_, double roughness_, double fesnel_coef_)
+			:albedo_diffuse(albedo_diffuse_), albedo_specular(albedo_specular_), roughness(roughness_), fesnel_coef(fesnel_coef_) {}
 
-		Vec3 albedo = Vec3(1.0);
+		Vec3 albedo_diffuse = Vec3(1.0);
+		Vec3 albedo_specular = Vec3(1.0);
 		double roughness = 0.5;
 		double fesnel_coef = 0.98;
 	};
