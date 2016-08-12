@@ -70,7 +70,7 @@ namespace lc {
 		double diffusion_count = 0;
 		// Vec3 diffusion(1.0);
 
-		double max_diffusion_count = 4.0;
+		double max_diffusion_count = 5.0;
 		// path.nodes.reserve(max_trace);
 
 		for (int i = 0; i < kMaxDepth && diffusion_count < max_diffusion_count; ++i) {
@@ -234,15 +234,22 @@ namespace lc {
 			if (auto lambert = boost::get<LambertMaterial>(&camera_node.surface.m)) {
 				auto sample = direct_light_sample(scene, camera_node.surface.p, engine);
 				// TODO emissiveが0ならやらなくていい？
+				double pdf = camera_node.pdf * sample.pdf;
+
 				if (is_visible(sample->ray, scene, sample->tmin - kEPS)) {
 					auto emissive = sample->onLight.emissive;
-					double pdf = camera_node.pdf * sample.pdf;
 					Vec3 omega_i = sample->ray.d;
 					double brdf = glm::one_over_pi<double>();
 					double cos_term = glm::max(glm::dot(camera_node.surface.n, omega_i), 0.0);
 					Vec3 this_coef = lambert->albedo * brdf * cos_term;
 					Sample<Vec3> contrib;
 					contrib.value = this_coef * emissive.color * camera_node.coef / glm::max(pdf, kEPS);
+					contrib.pdf = pdf;
+					explicit_contributions.push_back(contrib);
+				}
+				else {
+					Sample<Vec3> contrib;
+					contrib.value = Vec3();
 					contrib.pdf = pdf;
 					explicit_contributions.push_back(contrib);
 				}
@@ -274,19 +281,30 @@ namespace lc {
 				}
 
 				Vec3 this_coef = albedo * brdf * cos_term;
-
-				double max_coef = glm::max(glm::max(this_coef.r, this_coef.g), this_coef.b);
-				double nee_probability = glm::clamp(max_coef * 1.5, 0.01, 1.0);
-				if (engine.continuous() < nee_probability) {
-					if (is_visible(sample->ray, scene, sample->tmin - kEPS)) {
-						pdf *= nee_probability;
-
-						Sample<Vec3> contrib;
-						contrib.value = this_coef * emissive.color * camera_node.coef / glm::max(pdf, kEPS);
-						contrib.pdf = pdf;
-						explicit_contributions.push_back(contrib);
-					}
+				if (is_visible(sample->ray, scene, sample->tmin - kEPS)) {
+					Sample<Vec3> contrib;
+					contrib.value = this_coef * emissive.color * camera_node.coef / glm::max(pdf, kEPS);
+					contrib.pdf = pdf;
+					explicit_contributions.push_back(contrib);
 				}
+				else {
+					Sample<Vec3> contrib;
+					contrib.value = Vec3();
+					contrib.pdf = pdf;
+					explicit_contributions.push_back(contrib);
+				}
+
+				// 
+				//double max_coef = glm::max(glm::max(this_coef.r, this_coef.g), this_coef.b);
+				//double nee_probability = glm::clamp(max_coef * 1.5, 0.01, 1.0);
+				//if (engine.continuous() < nee_probability) {
+				//	if (is_visible(sample->ray, scene, sample->tmin - kEPS)) {
+				//		Sample<Vec3> contrib;
+				//		contrib.value = this_coef * emissive.color * camera_node.coef / glm::max(pdf, kEPS);
+				//		contrib.pdf = nee_probability * pdf;
+				//		explicit_contributions.push_back(contrib);
+				//	}
+				//}
 			}
 			if (is_term) {
 				if (auto emissive = boost::get<EmissiveMaterial>(&camera_node.surface.m)) {
@@ -303,6 +321,8 @@ namespace lc {
 			explicit_contributions[i].value = Vec3(0.0, 0.4, 0.0);
 		}
 		*/
+		{
+		}
 
 		// 片方の戦略しか使えない場合に対応
 		if (explicit_contributions.empty()) {
@@ -319,11 +339,6 @@ namespace lc {
 		// MISによるマージ
 		Vec3 color;
 
-		// 平均
-		auto mu = [](const Vec3 v) {
-			return (v.x + v.y + v.z) * (1.0 / 3.0);
-		};
-
 		double implicit_weight = glm::pow(implicit_contribution.pdf, 2.0);
 		Vec3 implicit = implicit_contribution.value * implicit_weight / explicit_contributions.size();
 
@@ -333,6 +348,7 @@ namespace lc {
 
 			Vec3 sum = explicit_contribution.value * explicit_weight + implicit;
 			double weight_sum = implicit_weight + explicit_weight;
+
 			color += 0.0 < weight_sum ? sum / weight_sum : Vec3();
 		}
 

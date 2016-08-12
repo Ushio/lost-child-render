@@ -188,9 +188,9 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 	{
 		auto light = lc::DiscLight();
 		light.disc = lc::make_disc(
-			lc::Vec3(0.0, 24.0, 0.0),
-			lc::Vec3(0.0, -1.0, 0.0),
-			10.0
+			lc::Vec3(0.0, 20.0, 10.0),
+			glm::normalize(lc::Vec3(0.0, -1.0, -0.3)),
+			12.0
 		);
 		light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
 		scene.add(light);
@@ -218,44 +218,98 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 	//	light.doubleSided = false;
 	//	scene.add(light);
 	//}
-	{
-		auto light = lc::DiscLight();
-		light.disc = lc::make_disc(
-			lc::Vec3(-20.0f, 10.0, 0.0),
-			glm::normalize(lc::Vec3(1.0, -1.0, 0.0)),
-			5
-		);
-		light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
-		light.doubleSided = false;
-		scene.add(light);
-	}
+	//{
+	//	auto light = lc::DiscLight();
+	//	light.disc = lc::make_disc(
+	//		lc::Vec3(-20.0f, 10.0, 0.0),
+	//		glm::normalize(lc::Vec3(1.0, -1.0, 0.0)),
+	//		5
+	//	);
+	//	light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
+	//	light.doubleSided = false;
+	//	scene.add(light);
+	//}
 
 
 	// テストはと
-	{
-		double scale_value = 5.0;
-		lc::Mat4 transform;
-		transform = glm::translate(transform, lc::Vec3(0.0, -24.0, 0.0));
-		transform = glm::scale(transform, lc::Vec3(scale_value));
+	//{
+	//	double scale_value = 5.0;
+	//	lc::Mat4 transform;
+	//	transform = glm::translate(transform, lc::Vec3(0.0, -24.0, 0.0));
+	//	transform = glm::scale(transform, lc::Vec3(scale_value));
 
+
+	//	std::vector<tinyobj::shape_t> shapes;
+	//	std::vector<tinyobj::material_t> materials;
+	//	std::string err;
+	//	std::string path = (asset_path / "hato.obj").string();
+	//	bool ret = tinyobj::LoadObj(shapes, materials, err, path.c_str());
+
+	//	for (int k = 0; k < shapes.size(); ++k) {
+	//		const tinyobj::shape_t &shape = shapes[k];
+	//		auto mesh = lc::MeshObject();
+	//		if (shape.name == "hato.002_hato.003") {
+	//			mesh.material = lc::LambertMaterial(lc::Vec3(0.4, 0.9, 0.95));
+	//		}
+	//		else {
+	//			mesh.material = lc::LambertMaterial(lc::Vec3(0.85, 0.63, 0.85));
+	//		}
+
+	//		// mesh.material = lc::CookTorranceMaterial(lc::Vec3(1.0), 0.4, 0.99 /*フレネル*/);
+
+	//		std::vector<lc::Triangle> triangles;
+	//		for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+	//			lc::Triangle tri;
+	//			for (int j = 0; j < 3; ++j) {
+	//				int idx = shape.mesh.indices[i + j];
+	//				for (int k = 0; k < 3; ++k) {
+	//					tri.v[j][k] = shape.mesh.positions[idx * 3 + k];
+	//				}
+	//			}
+	//			triangles.push_back(tri);
+	//		}
+	//		std::vector<lc::Triangle> tris = triangles;
+
+	//		for (int i = 0; i < tris.size(); ++i) {
+	//			for (int j = 0; j < 3; ++j) {
+	//				tris[i][j] = lc::mul3x4(transform, tris[i][j]);
+	//			}
+	//		}
+	//		mesh.bvh.set_triangle(tris);
+	//		mesh.bvh.build();
+
+	//		scene.add(mesh);
+	//	}
+
+	//	std::array<lc::Vec3, 2> eyes = {
+	//		lc::Vec3(1.405, 4.02, 0.594),
+	//		lc::Vec3(1.405, 4.02, -0.594)
+	//	};
+	//	for (int i = 0; i < eyes.size(); ++i) {
+	//		auto eye = lc::SphereObject(
+	//			lc::Sphere(lc::mul3x4(transform, eyes[i]), 0.15 * scale_value),
+	//			lc::CookTorranceMaterial(lc::Vec3(0.0), lc::Vec3(1.0), 0.01, 0.05 /*フレネル*/)
+	//		);
+	//		scene.add(eye);
+	//	}
+	//}
+
+	{
+		double scale_value = 9.0;
+		lc::Mat4 transform;
+		transform = glm::translate(transform, lc::Vec3(0.0, -35.0, 0.0));
+		transform = glm::scale(transform, lc::Vec3(scale_value));
 
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
 		std::string err;
-		std::string path = (asset_path / "hato.obj").string();
+		std::string path = (asset_path / "rose.obj").string();
 		bool ret = tinyobj::LoadObj(shapes, materials, err, path.c_str());
 
 		for (int k = 0; k < shapes.size(); ++k) {
 			const tinyobj::shape_t &shape = shapes[k];
 			auto mesh = lc::MeshObject();
-			if (shape.name == "hato.002_hato.003") {
-				mesh.material = lc::LambertMaterial(lc::Vec3(0.4, 0.9, 0.95));
-			}
-			else {
-				mesh.material = lc::LambertMaterial(lc::Vec3(0.85, 0.63, 0.85));
-			}
-
-			// mesh.material = lc::CookTorranceMaterial(lc::Vec3(1.0), 0.4, 0.99 /*フレネル*/);
+			mesh.material = lc::LambertMaterial(lc::Vec3(0.98, 0.13, 0.35));
 
 			std::vector<lc::Triangle> triangles;
 			for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
@@ -279,18 +333,6 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 			mesh.bvh.build();
 
 			scene.add(mesh);
-		}
-
-		std::array<lc::Vec3, 2> eyes = {
-			lc::Vec3(1.405, 4.02, 0.594),
-			lc::Vec3(1.405, 4.02, -0.594)
-		};
-		for (int i = 0; i < eyes.size(); ++i) {
-			auto eye = lc::SphereObject(
-				lc::Sphere(lc::mul3x4(transform, eyes[i]), 0.15 * scale_value),
-				lc::CookTorranceMaterial(lc::Vec3(0.0), lc::Vec3(1.0), 0.01, 0.05 /*フレネル*/)
-			);
-			scene.add(eye);
 		}
 	}
 
