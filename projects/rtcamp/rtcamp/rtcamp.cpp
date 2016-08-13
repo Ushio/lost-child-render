@@ -22,7 +22,8 @@
 
 static const double kRENDER_TIME = 60.0 * 5.0;
 static const double kWRITE_INTERVAL = 10.0;
-static const int kSIZE = 1024;
+// static const int kSIZE = 1024;
+static const int kSIZE = 1536;
 
 namespace {
 	void write_as_png(std::string filename, const lc::AccumlationBuffer &buffer) {
@@ -61,7 +62,7 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 	scene.camera = lc::Camera(camera_settings);
 	scene.viewTransform = lc::Transform(glm::lookAt(eye, look_at, up));
 
-	scene.add(lc::ConelBoxObject(50.0));
+	// scene.add(lc::ConelBoxObject(50.0));
 
 	//auto spec = lc::SphereObject(
 	//	lc::Sphere(lc::Vec3(-10.0, -15, -10.0), 10.0),
@@ -99,7 +100,6 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 	//);
 	//scene.add(grass);
 
-
 	//cinder::ObjLoader loader(loadAsset("dragon.obj"));
 	//auto mesh = cinder::TriMesh::create(loader);
 
@@ -125,11 +125,11 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 	{
 		auto light = lc::DiscLight();
 		light.disc = lc::make_disc(
-			lc::Vec3(0.0, 24.0, 0.0),
-			lc::Vec3(0.0, -1.0, 0.0),
-			10.0
+			lc::Vec3(0.0, 50.0, 30.0),
+			glm::normalize(lc::Vec3(0.0, -1.0, -0.8)),
+			40.0
 		);
-		light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
+		light.emissive = lc::EmissiveMaterial(lc::Vec3(1.5));
 		scene.add(light);
 	}
 
@@ -155,26 +155,26 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 	//	light.doubleSided = false;
 	//	scene.add(light);
 	//}
-	{
-		auto light = lc::DiscLight();
-		light.disc = lc::make_disc(
-			lc::Vec3(-20.0f, 10.0, 0.0),
-			glm::normalize(lc::Vec3(1.0, -1.0, 0.0)),
-			5
-		);
-		light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
-		light.doubleSided = false;
-		scene.add(light);
-	}
+	//{
+	//	auto light = lc::DiscLight();
+	//	light.disc = lc::make_disc(
+	//		lc::Vec3(-20.0f, 10.0, 0.0),
+	//		glm::normalize(lc::Vec3(1.0, -1.0, 0.0)),
+	//		5
+	//	);
+	//	light.emissive = lc::EmissiveMaterial(lc::Vec3(10.0));
+	//	light.doubleSided = false;
+	//	scene.add(light);
+	//}
 
 
 	// テストはと
 	{
-		double scale_value = 5.0;
+		double scale_value = 2.0;
 		lc::Mat4 transform;
-		transform = glm::translate(transform, lc::Vec3(0.0, -24.0, 0.0));
+		transform = glm::translate(transform, lc::Vec3(-20.0, -25.0, 15.0));
+		transform = glm::rotate(transform, glm::radians(15.0), lc::Vec3(0.0, 1.0, 0.0));
 		transform = glm::scale(transform, lc::Vec3(scale_value));
-
 
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
@@ -191,8 +191,6 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 			else {
 				mesh.material = lc::LambertMaterial(lc::Vec3(0.85, 0.63, 0.85));
 			}
-
-			// mesh.material = lc::CookTorranceMaterial(lc::Vec3(1.0), 0.4, 0.99 /*フレネル*/);
 
 			std::vector<lc::Triangle> triangles;
 			for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
@@ -231,11 +229,188 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 		}
 	}
 
+	{
+		std::vector<tinyobj::shape_t> shapes;
+		std::vector<tinyobj::material_t> materials;
+		std::string err;
+		std::string path = (asset_path / "rose.obj").string();
+		bool ret = tinyobj::LoadObj(shapes, materials, err, path.c_str());
+
+
+		std::vector<lc::Triangle> triangles;
+		const tinyobj::shape_t &shape = shapes[0];
+		for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+			lc::Triangle tri;
+			for (int j = 0; j < 3; ++j) {
+				int idx = shape.mesh.indices[i + j];
+				for (int k = 0; k < 3; ++k) {
+					tri.v[j][k] = shape.mesh.positions[idx * 3 + k];
+				}
+			}
+			triangles.push_back(tri);
+		}
+
+		std::array<lc::Vec3, 3> positions = {
+			lc::Vec3(0.0,  -25.0, 10.0),
+			lc::Vec3(-25.0, -25.0, -15.0),
+			lc::Vec3(30.0, -25.0, -25.0),
+		};
+		std::array<lc::Vec3, 3> colors = {
+			lc::Vec3(0.98, 0.13, 0.35),
+			lc::Vec3(0.98, 0.9, 0.35),
+			lc::Vec3(0.35, 0.13, 0.98),
+		};
+		for (int ri = 0; ri < 3; ++ri) {
+			std::vector<lc::Triangle> tris = triangles;
+
+			lc::Mat4 transform;
+			transform = glm::translate(transform, positions[ri]);
+			transform = glm::scale(transform, lc::Vec3(9.0));
+
+			for (int i = 0; i < tris.size(); ++i) {
+				for (int j = 0; j < 3; ++j) {
+					tris[i][j] = lc::mul3x4(transform, tris[i][j]);
+				}
+			}
+
+			auto mesh = lc::MeshObject();
+			mesh.material = lc::LambertMaterial(colors[ri]);
+			mesh.bvh.set_triangle(tris);
+			mesh.bvh.build();
+
+			scene.add(mesh);
+		}
+	}
+
+	{
+		lc::Mat4 transform;
+		transform = glm::translate(transform, lc::Vec3(0.0, -25.0, 30.0));
+		transform = glm::scale(transform, lc::Vec3(120.0));
+
+		std::vector<tinyobj::shape_t> shapes;
+		std::vector<tinyobj::material_t> materials;
+		std::string err;
+		std::string path = (asset_path / "floor.obj").string();
+		bool ret = tinyobj::LoadObj(shapes, materials, err, path.c_str());
+
+		for (int k = 0; k < shapes.size(); ++k) {
+			const tinyobj::shape_t &shape = shapes[k];
+			auto mesh = lc::MeshObject();
+			// mesh.material = lc::CookTorranceMaterial(lc::Vec3(1.0), 0.4, 0.99);
+			// mesh.material = lc::PerfectSpecularMaterial();
+			mesh.material = lc::LambertMaterial(lc::Vec3(1.0));
+
+			std::vector<lc::Triangle> triangles;
+			for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+				lc::Triangle tri;
+				for (int j = 0; j < 3; ++j) {
+					int idx = shape.mesh.indices[i + j];
+					for (int k = 0; k < 3; ++k) {
+						tri.v[j][k] = shape.mesh.positions[idx * 3 + k];
+					}
+				}
+				triangles.push_back(tri);
+			}
+			std::vector<lc::Triangle> tris = triangles;
+
+			for (int i = 0; i < tris.size(); ++i) {
+				for (int j = 0; j < 3; ++j) {
+					tris[i][j] = lc::mul3x4(transform, tris[i][j]);
+				}
+			}
+			mesh.bvh.set_triangle(tris);
+			mesh.bvh.build();
+
+			scene.add(mesh);
+		}
+	}
+
+	{
+		std::vector<tinyobj::shape_t> shapes;
+		std::vector<tinyobj::material_t> materials;
+		std::string err;
+		std::string path = (asset_path / "thorn_c.obj").string();
+		bool ret = tinyobj::LoadObj(shapes, materials, err, path.c_str());
+
+		std::vector<lc::Triangle> triangles;
+		auto mesh = lc::MeshObject();
+		mesh.material = lc::CookTorranceMaterial(lc::Vec3(0.3, 0.7, 0.2), 0.4, 0.99);
+
+		for (int k = 0; k < shapes.size(); ++k) {
+			const tinyobj::shape_t &shape = shapes[k];
+
+			for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+				lc::Triangle tri;
+				for (int j = 0; j < 3; ++j) {
+					int idx = shape.mesh.indices[i + j];
+					for (int k = 0; k < 3; ++k) {
+						tri.v[j][k] = shape.mesh.positions[idx * 3 + k];
+					}
+				}
+				triangles.push_back(tri);
+			}
+		}
+
+		{
+			auto tris = triangles;
+			lc::Mat4 transform;
+			transform = glm::rotate(transform, glm::radians(40.0), lc::Vec3(0.0, -1.0, 1.0));
+			transform = glm::translate(transform, lc::Vec3(0.0, -20.0, -10.0));
+			transform = glm::scale(transform, lc::Vec3(200.0));
+
+			for (int i = 0; i < tris.size(); ++i) {
+				for (int j = 0; j < 3; ++j) {
+					tris[i][j] = lc::mul3x4(transform, tris[i][j]);
+				}
+			}
+			mesh.bvh.set_triangle(tris);
+			mesh.bvh.build();
+			scene.add(mesh);
+		}
+
+		{
+			auto tris = triangles;
+			lc::Mat4 transform;
+			transform = glm::rotate(transform, glm::radians(20.0), lc::Vec3(0.0, 1.0, 1.0));
+			transform = glm::translate(transform, lc::Vec3(20.0, -40.0, -10.0));
+			transform = glm::scale(transform, lc::Vec3(200.0));
+
+			for (int i = 0; i < tris.size(); ++i) {
+				for (int j = 0; j < 3; ++j) {
+					tris[i][j] = lc::mul3x4(transform, tris[i][j]);
+				}
+			}
+			mesh.bvh.set_triangle(tris);
+			mesh.bvh.build();
+			scene.add(mesh);
+		}
+		{
+			auto tris = triangles;
+			lc::Mat4 transform;
+			transform = glm::rotate(transform, glm::radians(20.0), lc::Vec3(0.0, 1.0, -1.0));
+			transform = glm::translate(transform, lc::Vec3(-20.0, -40.0, -10.0));
+			transform = glm::scale(transform, lc::Vec3(200.0));
+
+			for (int i = 0; i < tris.size(); ++i) {
+				for (int j = 0; j < 3; ++j) {
+					tris[i][j] = lc::mul3x4(transform, tris[i][j]);
+				}
+			}
+			mesh.bvh.set_triangle(tris);
+			mesh.bvh.build();
+			scene.add(mesh);
+		}
+
+	}
+
 	// ポリゴンライト
 	{
+		const double kLightPower = 55.0;
+
 		auto light = lc::PolygonLight();
-		light.emissive_front = lc::Vec3(3.0, 3.0, 0.5);
-		light.emissive_back = lc::Vec3(0.5, 5.0, 5.0);
+		//light.emissive_front = lc::Vec3(3.0, 3.0, 0.5);
+		//light.emissive_back = lc::Vec3(0.5, 5.0, 5.0);
+		// light.emissive_front = light.emissive_back = lc::Vec3(20.0, 10.0, 10.0);
 
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
@@ -266,7 +441,7 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 					tris[i][j] = glm::rotateX(tris[i][j], glm::radians(40.0));
 					tris[i][j] = glm::rotateY(tris[i][j], glm::radians(70.0));
 
-					tris[i][j] += lc::Vec3(-10.0, 0.0, 0.0);
+					tris[i][j] += lc::Vec3(-15.0, 5.0, 0.0);
 				}
 			}
 
@@ -274,6 +449,8 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 			light.uniform_triangle.build();
 			light.bvh.set_triangle(tris);
 			light.bvh.build();
+
+			light.emissive_front = light.emissive_back = lc::Vec3(kLightPower * 0.5, kLightPower * 0.5, 0.9);
 
 			scene.add(light);
 		}
@@ -288,7 +465,7 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 					tris[i][j] = glm::rotateX(tris[i][j], glm::radians(40.0));
 					tris[i][j] = glm::rotateY(tris[i][j], glm::radians(-30.0));
 
-					tris[i][j] += lc::Vec3(11.0, 10.0, -5.0);
+					tris[i][j] += lc::Vec3(20.0, 15.0, -5.0);
 				}
 			}
 
@@ -297,13 +474,38 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 			light.bvh.set_triangle(tris);
 			light.bvh.build();
 
+			light.emissive_front = light.emissive_back = lc::Vec3(kLightPower, 0.9, kLightPower);
+
+			scene.add(light);
+		}
+
+		{
+			std::vector<lc::Triangle> tris = triangles;
+
+			// デフォルトは奥を向いている？
+			for (int i = 0; i < tris.size(); ++i) {
+				for (int j = 0; j < 3; ++j) {
+					tris[i][j] *= 10.0;
+					tris[i][j] = glm::rotateX(tris[i][j], glm::radians(20.0));
+					tris[i][j] = glm::rotateY(tris[i][j], glm::radians(-45.0));
+
+					tris[i][j] += lc::Vec3(-15.0, 25.0, -15.0);
+				}
+			}
+
+			light.uniform_triangle.set_triangle(tris);
+			light.uniform_triangle.build();
+			light.bvh.set_triangle(tris);
+			light.bvh.build();
+
+			light.emissive_front = light.emissive_back = lc::Vec3(0.9, kLightPower, kLightPower);
+
 			scene.add(light);
 		}
 	}
 
 	scene.finalize();
 }
-
 int main(int argc, char *argv[])
 {
 	char name[1024];

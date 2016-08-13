@@ -179,6 +179,9 @@ namespace lc {
 			else if (auto refrac = boost::get<RefractionMaterial>(&surface.m)) {
 				double eta = surface.isback ? refrac->ior / 1.0 : 1.0 / refrac->ior;
 				double fresnel_value = fresnel(dot(omega_o, surface.n), 0.02);
+
+				coef *= refrac->albedo;
+
 				if (fresnel_value < engine.continuous()) {
 					auto omega_i_refract = refraction(-omega_o, surface.n, eta);
 					curr_ray = Ray(glm::fma(omega_i_refract, kReflectionBias, surface.p), omega_i_refract);

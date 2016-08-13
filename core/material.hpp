@@ -30,8 +30,9 @@ namespace lc {
 	};
 	struct RefractionMaterial {
 		RefractionMaterial() {}
-		RefractionMaterial(double ior_) :ior(ior_) {}
+		RefractionMaterial(double ior_, Vec3 albedo_) :ior(ior_), albedo(albedo_){}
 		double ior = 1.4;
+		Vec3 albedo = Vec3(1.0);
 	};
 	struct PerfectSpecularMaterial {
 		PerfectSpecularMaterial() {}
