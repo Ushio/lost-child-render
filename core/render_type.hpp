@@ -43,6 +43,27 @@ namespace lc {
 		}
 		std::array<Vec3, 3> v;
 	};
+
+	struct Image {
+		Image() {
+
+		}
+		Image(int w, int h):width(w), height(h), pixels(w * h){
+
+		}
+
+		void resize(int w, int h) {
+			if (width != w || height != h) {
+				width = w;
+				height = h;
+				pixels.resize(w * h);
+			}
+		}
+
+		int width = 0;
+		int height = 0;
+		std::vector<Vec3> pixels;
+	};
 }
 
 /*

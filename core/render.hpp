@@ -34,13 +34,30 @@ namespace lc {
 			DefaultEngine engine;
 		};
 
+		void to_image(Image &image) {
+			image.resize(_width, _height);
+			double normalize_value = 1.0 / _iteration;
+			parallel_for(image.height, [normalize_value, &image, this](int beg_y, int end_y) {
+				for (int y = beg_y; y < end_y; ++y) {
+					Vec3 *lineHead = image.pixels.data() + image.width * y;
+					for (int x = 0; x < image.width; ++x) {
+						int index = y * image.width + x;
+						const AccumlationBuffer::Pixel &pixel = _data[index];
+						Vec3 *dstRGB = lineHead + x;
+						Vec3 color = pixel.color * normalize_value;
+						*dstRGB = color;
+					}
+				}
+			});
+		}
+
 		int _width = 0;
 		int _height = 0;
 		std::vector<Pixel> _data;
 		int _iteration = 0;
 		int _ray_count = 0;
 	};
-
+	
 	struct Path {
 		struct Node {
 			Vec3 omega_i;

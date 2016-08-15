@@ -134,7 +134,7 @@ void NonLocalMeansApp::setup()
 {
 	ui::initialize();
 
-	_input = Surface32f::create(loadImage(loadAsset("image.exr")));
+	_input = Surface32f::create(loadImage(loadAsset("render_048.png")));
 	_input_texture = gl::Texture2d::create(*_input);
 
 	_output = non_local_means(_input, _param_h, _sigma);
@@ -165,8 +165,11 @@ void NonLocalMeansApp::draw()
 	gl::ScopedGlslProg shaderScp(_previewShader);
 	gl::ScopedTextureBind texBindScp(texture);
 	_previewShader->uniform("u_scale", 1.0f);
-	_previewShader->uniform("u_gamma_correction", 1.0f / 2.2f);
-	gl::drawSolidRect(texture->getBounds());
+	_previewShader->uniform("u_gamma_correction", 1.0f);
+	auto b = texture->getBounds();
+	b.setX2(1024);
+	b.setY2(1024);
+	gl::drawSolidRect(b);
 
 	ui::ScopedWindow window("params", glm::vec2(200, 300));
 

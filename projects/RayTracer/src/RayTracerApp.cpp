@@ -7,6 +7,8 @@
 
 #include "render.hpp"
 
+#include "image_processing.hpp"
+
 #include "helper_cinder/mesh_util.hpp"
 #include "helper_cinder/draw_wire_aabb.hpp"
 #include "helper_cinder/draw_camera.hpp"
@@ -25,43 +27,22 @@
 static const int wide = 256;
 
 namespace lc {
-	inline cinder::Surface32fRef to_surface(const AccumlationBuffer &buffer) {
-		auto surface = cinder::Surface32f::create(buffer._width, buffer._height, false);
-		double normalize_value = 1.0 / buffer._iteration;
-
-		parallel_for(buffer._height, [&buffer, surface, normalize_value](int beg_y, int end_y) {
-			for (int y = beg_y; y < end_y; ++y) {
-				float *lineHead = surface->getData(glm::ivec2(0, y));
-				for (int x = 0; x < buffer._width; ++x) {
-					int index = y * buffer._width + x;
-					const AccumlationBuffer::Pixel &pixel = buffer._data[index];
-					float *dstRGB = lineHead + x * 3;
-
-					Vec3 color = pixel.color * normalize_value;
-
-					for (int i = 0; i < 3; ++i) {
-						dstRGB[i] = static_cast<float>(color[i]);
-					}
-				}
-			}
-		});
-		/*concurrency::parallel_for<int>(0, buffer._height, [&buffer, surface, normalize_value](int y) {
+	inline cinder::Surface32fRef to_surface(const Image &image) {
+		auto surface = cinder::Surface32f::create(image.width, image.height, false);
+		for (int y = 0; y < image.height; ++y) {
 			float *lineHead = surface->getData(glm::ivec2(0, y));
-			for (int x = 0; x < buffer._width; ++x) {
-				int index = y * buffer._width + x;
-				const AccumlationBuffer::Pixel &pixel = buffer._data[index];
+			for (int x = 0; x < image.width; ++x) {
+				int index = y * image.width + x;
+				const Vec3 &pixel = image.pixels[index];
 				float *dstRGB = lineHead + x * 3;
 
-				Vec3 color = pixel.color * normalize_value;
-
 				for (int i = 0; i < 3; ++i) {
-					dstRGB[i] = static_cast<float>(color[i]);
+					dstRGB[i] = static_cast<float>(pixel[i]);
 				}
 			}
-		});*/
+		}
 		return surface;
 	}
-
 
 	//// すこぶる微妙な気配
 	//inline cinder::Surface32fRef median_filter(cinder::Surface32fRef image) {
@@ -708,12 +689,9 @@ void RayTracerApp::draw()
 
 		_renderTime += duration;
 
-		//if (_median) {
-		//	_surface = lc::median_filter(lc::to_surface(*_buffer));
-		//} else {
-		//	_surface = lc::to_surface(*_buffer);
-		//}
-		_surface = lc::to_surface(*_buffer);
+		static lc::Image image;
+		_buffer->to_image(image);
+		_surface = lc::to_surface(image);
 		_texture = gl::Texture2d::create(*_surface);
 
 		fbo_update = true;
