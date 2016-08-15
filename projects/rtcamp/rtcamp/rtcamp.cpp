@@ -28,6 +28,7 @@ static const double kWRITE_INTERVAL = 20.0;
 // static const int kSIZE = 1024;
 // static const int kSIZE = 256;
 static const int kSIZE = 1200;
+
 static const double kNLM_TIME_ESTIMATE = 2.5; // 1200 x 1200
 static const double kNLM_COEF = 0.35;
 
@@ -587,11 +588,13 @@ int main(int argc, char *argv[])
 		std::string name = boost::str(boost::format("render_%03d.png") % i);
 		std::string dst = (exe_dir / name).string();
 		if (i == 0 || kWRITE_INTERVAL < write_timer.elapsed()) {
+			save_task.get();
+
 			_buffer->to_image(image);
 
-			save_task.get();
 			save_task = std::async(std::launch::async, [&image, dst]() {
 				lc::gamma(image);
+				lc::color_correction(image);
 				write_as_png(dst, image);
 				return 0; 
 			});
@@ -614,7 +617,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	// 最終フレーム
+	// 最終フレーム処理
+	save_task.get();
 
 	_buffer->to_image(image);
 
@@ -625,6 +629,7 @@ int main(int argc, char *argv[])
 		double elapsed_nlm = timer_nlm.elapsed();
 
 		lc::gamma(nlm_image);
+		lc::color_correction(nlm_image);
 
 		std::string name = boost::str(boost::format("render_%03d_final.png") % i);
 		std::string dst = (exe_dir / name).string();

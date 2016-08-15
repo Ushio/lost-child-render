@@ -18,6 +18,23 @@ namespace lc {
 			}
 		});
 	}
+
+	// マニュアルカラコレ
+	inline void color_correction(Image &image) {
+		parallel_for(image.height, [&image](int beg_y, int end_y) {
+			for (int y = beg_y; y < end_y; ++y) {
+				Vec3 *lineHead = image.pixels.data() + image.width * y;
+				for (int x = 0; x < image.width; ++x) {
+					Vec3 &rgb = lineHead[x];
+					double hand_tonemap = 0.25;
+					for (int i = 0; i < 3; ++i) {
+						rgb[i] = glm::pow((rgb[i] - hand_tonemap) * (1.0 / (1.0 - hand_tonemap)), 1.0 / 1.5);
+					}
+				}
+			}
+		});
+	}
+
 	inline void non_local_means(Image &image_dst, const Image &image_src, double coef) {
 		double param_h = std::max(0.0001, coef);
 		double sigma = std::max(0.0001, coef);
