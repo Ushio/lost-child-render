@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <array>
+#include <vector>
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 #include <glm/gtx/simd_vec4.hpp>
@@ -64,6 +65,7 @@ namespace lc {
 		int height = 0;
 		std::vector<Vec3> pixels;
 	};
+	
 }
 
 /*

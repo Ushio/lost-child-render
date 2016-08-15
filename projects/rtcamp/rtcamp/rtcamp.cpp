@@ -5,8 +5,10 @@
 
 #include <iostream>
 #include <fstream>
+#include <future>
 
 #include "render.hpp"
+#include "image_processing.hpp"
 
 #include <windows.h>
 #include <ppl.h>
@@ -21,34 +23,57 @@
 #include <boost/format.hpp>
 
 static const double kRENDER_TIME = 60.0 * 5.0;
-static const double kWRITE_INTERVAL = 10.0;
+// static const double kRENDER_TIME = 30.0;
+static const double kWRITE_INTERVAL = 20.0;
 // static const int kSIZE = 1024;
-static const int kSIZE = 1536;
+// static const int kSIZE = 256;
+static const int kSIZE = 1200;
+static const double kNLM_TIME_ESTIMATE = 2.5; // 1200 x 1200
+static const double kNLM_COEF = 0.35;
 
 namespace {
-	void write_as_png(std::string filename, const lc::AccumlationBuffer &buffer) {
-		std::vector<uint8_t> pixels(buffer._width * buffer._height * 3);
-		double normalize_value = 1.0 / buffer._iteration;
-
-		concurrency::parallel_for<int>(0, buffer._height, [&buffer, &pixels, normalize_value](int y) {
-			uint8_t *lineHead = pixels.data() + 3 * buffer._width * y;
-			for (int x = 0; x < buffer._width; ++x) {
-				int index = y * buffer._width + x;
-				const lc::AccumlationBuffer::Pixel &pixel = buffer._data[index];
-				lc::Vec3 color = pixel.color * normalize_value;
-				lc::Vec3 gamma_corrected;
-				for (int i = 0; i < 3; ++i) {
-					gamma_corrected[i] = glm::pow(glm::clamp(color[i], 0.0, 1.0), 1.0 / 2.2);
-				}
-				uint8_t *dstRGB = lineHead + x * 3;
-				for (int i = 0; i < 3; ++i) {
-					dstRGB[i] = static_cast<uint8_t>(gamma_corrected[i] * 255.9999);
+	void write_as_png(std::string filename, const lc::Image &image) {
+		std::vector<uint8_t> pixels(image.width * image.height * 3);
+		parallel_for(image.height, [&pixels, &image](int beg_y, int end_y) {
+			for (int y = beg_y; y < end_y; ++y) {
+				uint8_t *lineHead = pixels.data() + image.width * 3 * y;
+				for (int x = 0; x < image.width; ++x) {
+					int index = y * image.width + x;
+					lc::Vec3 src = image.pixels[index];
+					uint8_t *dstRGB = lineHead + x * 3;
+					for (int i = 0; i < 3; ++i) {
+						dstRGB[i] = static_cast<uint8_t>(glm::clamp(src[i], 0.0, 1.0) * 255.9999);
+					}
 				}
 			}
 		});
 
-		stbi_write_png(filename.c_str(), buffer._width, buffer._height, 3, pixels.data(), buffer._width * 3);
+		stbi_write_png(filename.c_str(), image.width, image.height, 3, pixels.data(), image.width * 3);
 	}
+
+	//void write_as_png(std::string filename, const lc::AccumlationBuffer &buffer) {
+	//	std::vector<uint8_t> pixels(buffer._width * buffer._height * 3);
+	//	double normalize_value = 1.0 / buffer._iteration;
+
+	//	concurrency::parallel_for<int>(0, buffer._height, [&buffer, &pixels, normalize_value](int y) {
+	//		uint8_t *lineHead = pixels.data() + 3 * buffer._width * y;
+	//		for (int x = 0; x < buffer._width; ++x) {
+	//			int index = y * buffer._width + x;
+	//			const lc::AccumlationBuffer::Pixel &pixel = buffer._data[index];
+	//			lc::Vec3 color = pixel.color * normalize_value;
+	//			lc::Vec3 gamma_corrected;
+	//			for (int i = 0; i < 3; ++i) {
+	//				gamma_corrected[i] = glm::pow(glm::clamp(color[i], 0.0, 1.0), 1.0 / 2.2);
+	//			}
+	//			uint8_t *dstRGB = lineHead + x * 3;
+	//			for (int i = 0; i < 3; ++i) {
+	//				dstRGB[i] = static_cast<uint8_t>(gamma_corrected[i] * 255.9999);
+	//			}
+	//		}
+	//	});
+
+	//	stbi_write_png(filename.c_str(), buffer._width, buffer._height, 3, pixels.data(), buffer._width * 3);
+	//}
 }
 
 inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
@@ -351,6 +376,8 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 			}
 		}
 
+		std::vector<lc::Triangle> triangles_thorn;
+
 		{
 			auto tris = triangles;
 			lc::Mat4 transform;
@@ -363,9 +390,7 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 					tris[i][j] = lc::mul3x4(transform, tris[i][j]);
 				}
 			}
-			mesh.bvh.set_triangle(tris);
-			mesh.bvh.build();
-			scene.add(mesh);
+			triangles_thorn.insert(triangles_thorn.end(), tris.begin(), tris.end());
 		}
 
 		{
@@ -380,9 +405,7 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 					tris[i][j] = lc::mul3x4(transform, tris[i][j]);
 				}
 			}
-			mesh.bvh.set_triangle(tris);
-			mesh.bvh.build();
-			scene.add(mesh);
+			triangles_thorn.insert(triangles_thorn.end(), tris.begin(), tris.end());
 		}
 		{
 			auto tris = triangles;
@@ -396,13 +419,13 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 					tris[i][j] = lc::mul3x4(transform, tris[i][j]);
 				}
 			}
-			mesh.bvh.set_triangle(tris);
-			mesh.bvh.build();
-			scene.add(mesh);
+			triangles_thorn.insert(triangles_thorn.end(), tris.begin(), tris.end());
 		}
 
+		mesh.bvh.set_triangle(triangles_thorn);
+		mesh.bvh.build();
+		scene.add(mesh);
 	}
-
 	// ポリゴンライト
 	{
 		const double kLightPower = 55.0;
@@ -550,7 +573,11 @@ int main(int argc, char *argv[])
 
 	double step_time_sum = 0.0;
 
-	for (int i = 0; ; ++i) {
+	lc::Image image;
+	std::future<int> save_task = std::async(std::launch::async, []() { return 0; });
+
+	int i = 0;
+	for (i = 0; ; ++i) {
 		boost::timer timer_step;
 
 		lc::step(*_buffer, scene, 2);
@@ -560,7 +587,14 @@ int main(int argc, char *argv[])
 		std::string name = boost::str(boost::format("render_%03d.png") % i);
 		std::string dst = (exe_dir / name).string();
 		if (i == 0 || kWRITE_INTERVAL < write_timer.elapsed()) {
-			write_as_png(dst, *_buffer);
+			_buffer->to_image(image);
+
+			save_task.get();
+			save_task = std::async(std::launch::async, [&image, dst]() {
+				lc::gamma(image);
+				write_as_png(dst, image);
+				return 0; 
+			});
 
 			write_timer.restart();
 
@@ -575,16 +609,46 @@ int main(int argc, char *argv[])
 		double avg = step_time_sum / (i + 1);
 
 		// 次のステップを回したら、間に合わなそうならここで終了
-		if (kRENDER_TIME < elapsed + avg * 1.5) {
-			// このフレームをまだ書いていなかったのなら、ここで書いてから終了
-			if (wrote == false) {
-				write_as_png(dst, *_buffer);
-				wrote = true;
-			}
+		if (kRENDER_TIME - kNLM_TIME_ESTIMATE < elapsed + avg * 1.3) {
 			break;
 		}
 	}
 
+	// 最終フレーム
+
+	_buffer->to_image(image);
+
+	{
+		lc::Image nlm_image;
+		boost::timer timer_nlm;
+		lc::non_local_means(nlm_image, image, kNLM_COEF);
+		double elapsed_nlm = timer_nlm.elapsed();
+
+		lc::gamma(nlm_image);
+
+		std::string name = boost::str(boost::format("render_%03d_final.png") % i);
+		std::string dst = (exe_dir / name).string();
+		write_as_png(dst, nlm_image);
+
+		LOG_LN(boost::format("nlm - %.2f s") % elapsed_nlm);
+	}
+	/*
+	lc::Image nlm_image;
+	for (int i = 0; i < 10; ++i) {
+		double c = 0.05 * i;
+		boost::timer timer_nlm;
+		lc::non_local_means(nlm_image, image, c);
+		double elapsed_nlm = timer_nlm.elapsed();
+
+		lc::gamma(nlm_image);
+
+		std::string name = boost::str(boost::format("nlm_%03d.png") % i);
+		std::string dst = (exe_dir / name).string();
+		write_as_png(dst, nlm_image);
+
+		LOG_LN(boost::format("nlm - %.2f s") % elapsed_nlm);
+	}
+	*/
 	double elapsed = timer.elapsed();
 	LOG_LN(boost::format("done - %.2f s") % elapsed);
 

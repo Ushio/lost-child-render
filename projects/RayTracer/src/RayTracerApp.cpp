@@ -43,51 +43,6 @@ namespace lc {
 		}
 		return surface;
 	}
-
-	//// すこぶる微妙な気配
-	//inline cinder::Surface32fRef median_filter(cinder::Surface32fRef image) {
-	//	int width = image->getWidth();
-	//	int height = image->getHeight();
-	//	auto surface = cinder::Surface32f::create(width, height, false);
-	//	float *lineHeadDst = surface->getData();
-	//	float *lineHeadSrc = image->getData();
-	//	concurrency::parallel_for<int>(0, height, [lineHeadDst, lineHeadSrc, width, height](int y) {
-	//		for (int x = 0; x < width; ++x) {
-	//			int index = y * width + x;
-	//			struct Pix {
-	//				Pix() {}
-	//				Pix(const float *c):color(c[0], c[1], c[2]), luminance(0.299f*c[0] + 0.587f*c[1] + 0.114f*c[2]){
-	//				}
-	//				glm::vec3 color;
-	//				float luminance;
-	//			};
-
-	//			std::array<Pix, 5> p3x3;
-	//			//p3x3[0] = Pix(lineHeadSrc + (std::max(y - 1, 0) * width + std::max(x - 1, 0)) * 3);
-	//			p3x3[0] = Pix(lineHeadSrc + (std::max(y - 1, 0) * width + x) * 3);
-	//			//p3x3[2] = Pix(lineHeadSrc + (std::max(y - 1, 0) * width + std::min(x + 1, width - 1)) * 3);
-
-	//			p3x3[1] = Pix(lineHeadSrc + (y * width + std::max(x - 1, 0)) * 3);
-	//			p3x3[2] = Pix(lineHeadSrc + (y * width + x) * 3);
-	//			p3x3[3] = Pix(lineHeadSrc + (y * width + std::min(x + 1, width - 1)) * 3);
-
-	//			//p3x3[6] = Pix(lineHeadSrc + (std::min(y + 1, height - 1) * width + std::max(x - 1, 0)) * 3);
-	//			p3x3[4] = Pix(lineHeadSrc + (std::min(y + 1, height - 1) * width + x) * 3);
-	//			//p3x3[8] = Pix(lineHeadSrc + (std::min(y + 1, height - 1) * width + std::min(x + 1, width - 1)) * 3);
-	//			
-	//			std::nth_element(p3x3.begin(), p3x3.begin() + 2, p3x3.end(), [](const Pix &a, const Pix &b) { 
-	//				return a.luminance < b.luminance;
-	//			});
-
-	//			Pix p = p3x3[2];
-	//			float *dstRGB = lineHeadDst + (y * width + x) * 3;
-	//			for (int i = 0; i < 3; ++i) {
-	//				dstRGB[i] = p.color[i];
-	//			}
-	//		}
-	//	});
-	//	return surface;
-	//}
 }
 
 using namespace ci;
@@ -394,6 +349,8 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 			}
 		}
 
+		std::vector<lc::Triangle> triangles_thorn;
+
 		{
 			auto tris = triangles;
 			lc::Mat4 transform;
@@ -406,9 +363,7 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 					tris[i][j] = lc::mul3x4(transform, tris[i][j]);
 				}
 			}
-			mesh.bvh.set_triangle(tris);
-			mesh.bvh.build();
-			scene.add(mesh);
+			triangles_thorn.insert(triangles_thorn.end(), tris.begin(), tris.end());
 		}
 
 		{
@@ -423,9 +378,7 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 					tris[i][j] = lc::mul3x4(transform, tris[i][j]);
 				}
 			}
-			mesh.bvh.set_triangle(tris);
-			mesh.bvh.build();
-			scene.add(mesh);
+			triangles_thorn.insert(triangles_thorn.end(), tris.begin(), tris.end());
 		}
 		{
 			auto tris = triangles;
@@ -439,11 +392,12 @@ inline void setup_scene(lc::Scene &scene, lc::fs::path asset_path) {
 					tris[i][j] = lc::mul3x4(transform, tris[i][j]);
 				}
 			}
-			mesh.bvh.set_triangle(tris);
-			mesh.bvh.build();
-			scene.add(mesh);
+			triangles_thorn.insert(triangles_thorn.end(), tris.begin(), tris.end());
 		}
 
+		mesh.bvh.set_triangle(triangles_thorn);
+		mesh.bvh.build();
+		scene.add(mesh);
 	}
 
 	// ポリゴンライト
@@ -587,15 +541,6 @@ void RayTracerApp::setup()
 {
 	_controlfp_s(NULL, _EM_UNDERFLOW | _EM_OVERFLOW | _EM_ZERODIVIDE | _EM_INEXACT, _MCW_EM);
 
-	lc::fixed_vector<std::string, 5> tst;
-	tst.push_back("a");
-	tst.push_back("a");
-	tst.pop_back();
-	tst.push_back("c");
-	for (auto p : tst) {
-		std::cout << p << std::endl;
-	}
-
 	ui::initialize();
 
 	_camera.lookAt(vec3(0, 0.0f, 60.0f), vec3(0.0f));
@@ -690,7 +635,9 @@ void RayTracerApp::draw()
 		_renderTime += duration;
 
 		static lc::Image image;
+		static lc::Image nlm_image;
 		_buffer->to_image(image);
+		// lc::non_local_means(nlm_image, image, 1.0);
 		_surface = lc::to_surface(image);
 		_texture = gl::Texture2d::create(*_surface);
 
@@ -702,7 +649,6 @@ void RayTracerApp::draw()
 	if (ui::SliderFloat("preview gamma", &_previewGamma, 0.0f, 4.0f)) {
 		fbo_update = true;
 	}
-	// ui::Checkbox("median", &_median);
 	if (ui::Button("save")) {
 		write_exr("image.exr", _surface);
 	}
