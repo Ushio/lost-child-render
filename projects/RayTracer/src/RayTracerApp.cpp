@@ -532,6 +532,7 @@ public:
 	bool _render = false;
 	float _previewScale = 1.0f;
 	float _previewGamma = 2.2f;
+	// float _previewGamma = 1.0f;
 	bool _median = false;
 };
 
@@ -638,6 +639,8 @@ void RayTracerApp::draw()
 		static lc::Image nlm_image;
 		_buffer->to_image(image);
 		// lc::non_local_means(nlm_image, image, 1.0);
+		lc::tone_mapping(image);
+		// lc::color_correction(image);
 		_surface = lc::to_surface(image);
 		_texture = gl::Texture2d::create(*_surface);
 

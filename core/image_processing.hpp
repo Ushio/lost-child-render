@@ -4,6 +4,21 @@
 #include "parallel_for.hpp"
 
 namespace lc {
+	// マニュアルトーンマッピング
+	inline void tone_mapping(Image &image) {
+		parallel_for(image.height, [&image](int beg_y, int end_y) {
+			for (int y = beg_y; y < end_y; ++y) {
+				Vec3 *lineHead = image.pixels.data() + image.width * y;
+				for (int x = 0; x < image.width; ++x) {
+					Vec3 &rgb = lineHead[x];
+					for (int i = 0; i < 3; ++i) {
+						rgb[i] = glm::two_over_pi<double>() * glm::atan(2.4 * glm::two_over_pi<double>() * rgb[i]);
+					}
+				}
+			}
+		});
+	}
+
 	inline void gamma(Image &image, double g = 2.2) {
 		auto p = 1.0 / 2.2;
 		parallel_for(image.height, [p, &image](int beg_y, int end_y) {
@@ -19,16 +34,15 @@ namespace lc {
 		});
 	}
 
-	// マニュアルカラコレ
-	inline void color_correction(Image &image) {
-		parallel_for(image.height, [&image](int beg_y, int end_y) {
+	// コントラスト調整
+	inline void contrast(Image &image, double c) {
+		parallel_for(image.height, [&image, c](int beg_y, int end_y) {
 			for (int y = beg_y; y < end_y; ++y) {
 				Vec3 *lineHead = image.pixels.data() + image.width * y;
 				for (int x = 0; x < image.width; ++x) {
 					Vec3 &rgb = lineHead[x];
-					double hand_tonemap = 0.25;
 					for (int i = 0; i < 3; ++i) {
-						rgb[i] = glm::pow((rgb[i] - hand_tonemap) * (1.0 / (1.0 - hand_tonemap)), 1.0 / 1.5);
+						rgb[i] = (rgb[i] - 0.5) * c + 0.5;
 					}
 				}
 			}

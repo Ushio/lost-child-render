@@ -593,8 +593,10 @@ int main(int argc, char *argv[])
 			_buffer->to_image(image);
 
 			save_task = std::async(std::launch::async, [&image, dst]() {
+				lc::tone_mapping(image);
+				lc::contrast(image, 1.15);
 				lc::gamma(image);
-				lc::color_correction(image);
+				
 				write_as_png(dst, image);
 				return 0; 
 			});
@@ -628,8 +630,9 @@ int main(int argc, char *argv[])
 		lc::non_local_means(nlm_image, image, kNLM_COEF);
 		double elapsed_nlm = timer_nlm.elapsed();
 
+		lc::tone_mapping(nlm_image);
+		lc::contrast(nlm_image, 1.15);
 		lc::gamma(nlm_image);
-		lc::color_correction(nlm_image);
 
 		std::string name = boost::str(boost::format("render_%03d_final.png") % i);
 		std::string dst = (exe_dir / name).string();
